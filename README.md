@@ -16,18 +16,15 @@ For now, you have to make a conda env and then do a bit on manual stuff, cuase y
 
 ```
 git clone https://github.com/nickp60/mobilephone --recurse-submodules
-
-for starters. the conda env:
+```
+That is going to take care od downloading prophet as well.  After that, the conda env:
+We didn't install amos directly cause conda doesn't ahve it built for OSX :(.
 
 ```
-git clone --recurse-submodules
-conda create -n mobilephone
+conda create -n mobilephone emboss bedtools perl-bioperl blast  mash circlator
 source activate mobilephone
-conda install emboss bedtools
-# on osx legacy blst is not avaiable, you will need to get a compatible version from the biocore channel
+# on osx legacy blast is not avaiable, you will need to get a compatible version from the biocore channel
 conda install -c biocore bast-legacy
 source deactivate; source activate mobilephone
-conda install perl-bioperl
-git clone https://github.com/jaumlrc/ProphET; cd ProphET; ./INSTALL.pl
 
 ```
