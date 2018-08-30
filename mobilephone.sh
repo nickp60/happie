@@ -37,4 +37,4 @@ echo "Running ProphET"
 
 
 echo "Running MOBSUITE to detect and type plasmids"
-mob_recon --infile $input_file --outdir $mobsuite_output --run_typer
+mob_recon --infile $input_file --outdir $mobsuite_dir --run_typer --keep_tmp
