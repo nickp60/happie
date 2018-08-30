@@ -21,7 +21,7 @@ That is going to take care od downloading prophet as well.  After that, the cond
 We didn't install amos directly cause conda doesn't ahve it built for OSX :(.
 
 ```
-conda create -n mobilephone emboss bedtools perl-bioperl blast  mash circlator
+conda create -n mobilephone emboss bedtools perl-bioperl mobsuite
 source activate mobilephone
 # on osx legacy blast is not avaiable, you will need to get a compatible version from the biocore channel
 conda install -c biocore bast-legacy

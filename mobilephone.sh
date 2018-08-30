@@ -8,6 +8,7 @@ thisdir=$(pwd)
 output_dir=$(pwd)/out
 prokka_dir=${output_dir}/prokka_output
 prophet_dir=${output_dir}/ProphET_output
+mobsuite_dir=${output_dir}/mobsuite_output
 prefix="${RANDOM}${RANDOM}"
 logfile=${output_dir}/mobilephone.log
 
@@ -33,3 +34,7 @@ perl ./gff_rewrite.pl --input  $prokka_gff --output $prokka_new_gff --add_missin
 cd $thisdir
 echo "Running ProphET"
 ./submodules/ProphET/ProphET_standalone.pl --fasta_in $prokka_fna --gff_in $prokka_new_gff --outdir ${prophet_dir} 2>> $logfile
+
+
+echo "Running MOBSUITE to detect and type plasmids"
+mob_recon --infile $input_file --outdir $mobsuite_output --run_typer
