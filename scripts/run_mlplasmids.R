@@ -15,18 +15,29 @@ if(!"mlplasmids" %in% rownames(installed.packages())) {
   devtools::install_git("https://gitlab.com/sirarredondo/mlplasmids",
                         repos='http://cran.us.r-project.org')
 }
-library(mlplasmids)
+suppressMessages(library(mlplasmids))
 
-print("USAGE: Rscript run_mlplasmids.R ./path/to/assembly.fasta")
+usage =  "USAGE: Rscript run_mlplasmids.R ./path/to/assembly.fasta ./path/to/output.tab [prob_threshold] [species]"
 # ENABLE command line arguments
 args <- commandArgs(TRUE)
 
 
 # Change the following object with the system location of your input file
-my_path <- (args[1])
-if(is.na(args[2])
-stop()
-if (!is.args[2])
+input_path <- args[1]
+output_path <- args[2]
+if(any(is.na(c(input_path, output_path)))){
+    print(usage)
+    stop()
+}
+
+thresh <- ifelse(!is.na(args[3]), as.numeric(args[3]), .8)
+species <- ifelse(!is.na(args[4]), args[4], "Escherichia coli")
+print(thresh)
+print(species)
 # example_prediction <- plasmid_classification(path_input_file = my_path, full_output = TRUE, prob_threshold=.8, species = "Escherichia coli")
-example_prediction <- plasmid_classification(path_input_file = my_path,  prob_threshold=.8, species = "Escherichia coli")
-write.table(x=example_prediction, file=args[2], row.names=F, sep="\t")
+example_prediction <- plasmid_classification(path_input_file = input_path,  prob_threshold=thresh, species = species, full_output=TRUE)
+if (is.null(example_prediction){
+    stop("Issue with mlplasmids")
+}
+
+write.table(x=example_prediction, file=output_path, row.names=F, sep="\t")

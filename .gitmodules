@@ -1,3 +1,6 @@
 [submodule "submodules/ProphET"]
 	path = submodules/ProphET
 	url = https://github.com/jaumlrc/ProphET
+[submodule "submodules/islandpath"]
+	path = submodules/islandpath
+	url = https://github.com/brinkmanlab/islandpath
