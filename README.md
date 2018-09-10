@@ -12,16 +12,22 @@ These regions are short, and are interestesitng solely because of their context
 
 
 # Install
-For now, you have to make a conda env and then do a bit on manual stuff, cuase you have some databases to download.
 
 ```
 git clone https://github.com/nickp60/mobilephone --recurse-submodules
+# or if already cloned
+git submodule update --init
 ```
-That is going to take care od downloading prophet as well.  After that, the conda env:
+
+That is going to take care od downloading prophet as well.
+
+For now, you have to make a conda env and then do a bit on manual stuff, cuase you have some databases to download.
+
+After that, the conda env:
 We didn't install amos directly cause conda doesn't ahve it built for OSX :(.
 
 ```
-conda create -n mobilephone emboss bedtools perl-bioperl mob_suite perl-log-log4perl perl==5.22.0.1 perl-moose perl-config-simple hmmer
+conda create -n mobilephone emboss bedtools perl==5.22.0.1 perl-bioperl mob_suite perl-log-log4perl  perl-moose perl-config-simple hmmer
 source activate mobilephone
 # on osx legacy blast is not avaiable, you will need to get a compatible version from the biocore channel
 conda install -c biocore bast-legacy

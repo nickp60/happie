@@ -1,5 +1,6 @@
 #! /bin/bash
 
+cpanm install GD
 cd submodules/ProphET
 ./INSTALL.pl
 cd ../../
