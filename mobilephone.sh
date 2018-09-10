@@ -1,4 +1,20 @@
 #! /bin/bash
+set -euo pipefail
+IFS=$'\n\t'
+readonly LOG_FILE="/tmp/$(basename "$0").log"
+info()    { echo "[INFO]    $*" | tee -a "$LOG_FILE" >&2 ; }
+warning() { echo "[WARNING] $*" | tee -a "$LOG_FILE" >&2 ; }
+error()   { echo "[ERROR]   $*" | tee -a "$LOG_FILE" >&2 ; }
+fatal()   { echo "[FATAL]   $*" | tee -a "$LOG_FILE" >&2 ; exit 1 ; }
+echo "Logging to $LOG_FILE"
+#/ Usage: add <first number> <second number>
+#/ Compute the sum of two numbers
+usage() {
+    grep '^#/' "$0" | cut -c4-
+    exit 0
+}
+expr "$*" : ".*--help" > /dev/null && usage
+
 
 
 input_file=$1
@@ -29,7 +45,7 @@ echo $prophet_dir
 echo $prefix
 
 echo "test" >> $logfile
-echo "Running Prokka"
+info  "Running Prokka"
 prokka $input_file -o ${prokka_dir} --prefix $prefix --fast --cpus $cpus 2>> $logfile
 
 prokka_fna=${prokka_dir}/${prefix}.fna
@@ -49,8 +65,10 @@ mob_recon --infile $input_file --outdir $mobsuite_dir --run_typer --keep_tmp 2>>
 
 
 echo "Running mlplasmids to detect and type plasmids"
+mkdir $mlplasmids_dir
 # this takes ages the first time, cause its got to get the model
 Rscript ${scripts_dir}/run_mlplasmids.R $input_file ${mlplasmids_dir}/mlplasmids_results.tab .8 "Escherichia coli" 2>> $logfile
 
 echo "Running islandpath to detect genomic islands"
-perl ./submodules/islandpath/Dimob.pl ${prokka_dir}/${prefix}.gbk ${island_dir}/
+mkdir $island_dir
+perl ./submodules/islandpath/Dimob.pl ${prokka_dir}/${prefix}.gbk ${island_dir}/output.txt
