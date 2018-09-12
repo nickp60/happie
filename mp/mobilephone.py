@@ -66,7 +66,7 @@ def main(args=None):
         args.cores = multiprocessing.cpu_count()
 
     if args.prokka_dir is None:
-        prokka_dir = os.path.join(output_root, "prokka")
+        args.prokka_dir = os.path.join(output_root, "prokka")
         print("running prokka")
         prokka_cmd = "{exe} {file} -o {outdir} --prefix {name} --fast --cpus {cpus}".format(
             exe="prokka", file=args.contigs, outdir=args.prokka_dir, name=args.name, cpus=args.cores)
@@ -137,7 +137,7 @@ def main(args=None):
 
 
     ###########################################################################
-    # program sequence start end
+    # program type sequence start end
     all_results = []
     prophet_results_text = []
     mlplasmids_results_text = []
@@ -148,13 +148,26 @@ def main(args=None):
             prophet_results_text.append(results)
     with open(mlplasmids_results) as inf:
         for line in inf:
-            results = ["mlplasmids", "plasmid"]
+            # here we add 1 as a start index, and we will use the contig length as the end
+            results = ["mlplasmids", "plasmid", "0"]
             results.extend(line.strip().split("\t"))
             mlplasmids_results_text.append(results)
     print(prophet_results_text)
     print(mlplasmids_results_text)
     for line in prophet_results_text:
-        pass
+        subresults = []
+        for i in [0, 1, 2, 4, 5]:
+            subresults.append(line[i])
+        all_results.append(subresults)
+    for line in mlplasmids_results_text:
+        if line[5] == '"Plasmid"':
+            subresults = []
+            for i in [0, 1, 6, 2, 7]:
+                subresults.append(line[i])
+            all_results.append(subresults)
+
+    print("sjjvajsjvajsjvavjjas")
+    print(all_results)
 
 
 if __name__ == "__main__":
