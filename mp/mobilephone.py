@@ -3,6 +3,7 @@
 import re
 import argparse
 import sys
+import shutil
 import os
 import unittest
 import itertools
@@ -61,9 +62,11 @@ def main(args=None):
     if args is None:
         args = get_args()
     output_root = os.path.abspath(os.path.expanduser(args.output))
-    if args.stage != 1:
+    if args.stage == 1:
         os.makedirs(output_root, exist_ok=False)
     # make output dir names
+    if args.prokka_dir is None:
+        args.prokka_dir = os.path.join(output_root, "prokka")
     prophet_dir = os.path.join(output_root, "ProphET", "")
     prophet_results = os.path.join(prophet_dir, "phages_coords")
     mobsuite_dir = os.path.join(output_root, "mobsuite", "")
@@ -71,14 +74,13 @@ def main(args=None):
     island_results = os.path.join(output_root, "dimob", "results.txt")
     mlplasmids_dir = os.path.join(output_root, "mlplasmids", "")
     mlplasmids_results = os.path.join(output_root, "mlplasmids", "results.txt")
-    if args.stage != 0:
+    if args.stage < 2:
         for path in [prophet_dir, mobsuite_dir, mlplasmids_dir]:
             os.makedirs(path, exist_ok=False)
 
     if args.cores is None:
         args.cores = multiprocessing.cpu_count()
-    if args.stage < 2 or args.prokka_dir is None:
-        args.prokka_dir = os.path.join(output_root, "prokka")
+    if args.stage < 2:
         print("running prokka")
         prokka_cmd = "{exe} {file} -o {outdir} --prefix {name} --fast --cpus {cpus}".format(
             exe="prokka", file=args.contigs, outdir=args.prokka_dir, name=args.name, cpus=args.cores)
@@ -102,8 +104,8 @@ def main(args=None):
             raise ValueError("File not found - something went wrong in step 1 with prokak")
 
 
-    prokka_new_gff=os.path.join(args.prokka_dir, args.name + "_new.gbk")
-    if args.stage < 2:
+    prokka_new_gff = glob.glob(os.path.join(args.prokka_dir, "*_new.gbk"))[0]
+    if args.stage < 3:
         print( "Reformatting gff")
         print(os.getcwd())
 
@@ -125,6 +127,7 @@ def main(args=None):
         os.chdir("../../../../")
         print(os.getcwd())
         #######################################################################
+        shutil.rmtree(prophet_dir)
         prophet_cmd = "{exe} --fasta_in  {file} --gff_in {gff} --outdir {out}".format(
             exe="perl ./submodules/ProphET/ProphET_standalone.pl",
             file=prokka_fna, gff=prokka_new_gff, out=prophet_dir)
@@ -135,13 +138,14 @@ def main(args=None):
                        stderr=subprocess.PIPE,
                        check=True)
     if not os.path.exists(prokka_new_gff):
-        raise("Issue with recreating gff")
+        raise ValueError("Issue with recreating gff %s" % prokka_new_gff)
 
-    if args.stage < 3:
+    if args.stage < 4:
         mobsuite_cmd = \
             "{exe} --infile {file} --outdir {out} --run_typer --keep_tmp".format(
                 exe="mob_recon", file=prokka_fna, out=mobsuite_dir)
         print(mobsuite_cmd)
+        shutil.rmtree(mobsuite_dir)
         subprocess.run([mobsuite_cmd],
                        shell=sys.platform != "win32",
                        stdout=subprocess.PIPE,
@@ -151,6 +155,7 @@ def main(args=None):
             exe="Rscript scripts/run_mlplasmids.R",
             file=prokka_fna, out=mlplasmids_results)
         print(mlplasmids_cmd)
+        os.remove(mlplasmids_results)
         subprocess.run([mlplasmids_cmd],
                        shell=sys.platform != "win32",
                        stdout=subprocess.PIPE,
@@ -159,7 +164,7 @@ def main(args=None):
 
     for path in [mlplasmids_results]:
         if not os.path.exists(prokka_new_gff):
-            raise("Issue with recreating gff")
+            raise ValueError("Issue running mlplasmids gff")
     if args.stage < 5:
         island_cmd = "{exe} {file} {out}".format(
             exe="perl ./submodules/islandpath/Dimob.pl",
