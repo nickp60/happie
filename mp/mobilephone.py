@@ -38,6 +38,9 @@ def get_args():  # pragma: no cover
     optional.add_argument("-n", "--name", dest='name',
                           help="name of experiment; defaults to file name " +
                           "without extension.", default="test")
+    optional.add_argument("--skip_dimob", dest='skip_dimob',
+                          action="store_true",
+                          help="skip island finding.")
     optional.add_argument("-s", "--stage", dest='stage',
                           choices=[1, 2, 3, 4, 5],
                           help="stage, if restarting:" +
@@ -165,7 +168,7 @@ def main(args=None):
     for path in [mlplasmids_results]:
         if not os.path.exists(prokka_new_gff):
             raise ValueError("Issue running mlplasmids gff")
-    if args.stage < 5:
+    if args.stage < 5 and not args.skip_dimob:
         island_cmd = "{exe} {file} {out}".format(
             exe="perl ./submodules/islandpath/Dimob.pl",
             file=prokka_gbk, out=island_results)
