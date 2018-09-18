@@ -24,7 +24,6 @@ That is going to take care od downloading prophet as well.
 For now, you have to make a conda env and then do a bit on manual stuff, cuase you have some databases to download.
 
 After that, the conda env:
-We didn't install amos directly cause conda doesn't ahve it built for OSX :(.
 
 ```
 conda create -n mobilephone emboss bedtools perl==5.22.0.1 perl-bioperl mob_suite perl-log-log4perl  perl-moose perl-config-simple hmmer

@@ -219,7 +219,10 @@ def main(args=None):
             exe="Rscript scripts/run_mlplasmids.R",
             file=prokka_fna, out=mlplasmids_results)
         print(mlplasmids_cmd)
-        os.remove(mlplasmids_results)
+        try: # to get rid of old results if we are rerunning
+            os.remove(mlplasmids_results)
+        except FileNotFoundError:
+            pass
         subprocess.run([mlplasmids_cmd],
                        shell=sys.platform != "win32",
                        stdout=subprocess.PIPE,
@@ -243,9 +246,12 @@ def main(args=None):
 
     ###########################################################################
     # program type sequence start end
+    all_results = []
     prophet_parsed_results = parse_prophet_results(prophet_results)
     mlplasmids_parsed_results = parse_mlplasmids_results(mlplasmids_results)
-    all_results.extend(prophet_parsed_results, mlplasmids_parsed_results)
+
+    for i in [prophet_parsed_results, mlplasmids_parsed_results]:
+        all_results.extend(i)
 
     print(all_results)
     output_path = os.path.join(output_root, "mobile_genome.fasta")
