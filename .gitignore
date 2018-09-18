@@ -3,3 +3,5 @@ test_data/
 *#
 .#*
 *~
+*__pycache__*
+./tests/output_mp_tests/

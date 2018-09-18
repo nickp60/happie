@@ -61,6 +61,67 @@ def get_args():  # pragma: no cover
     return args
 
 
+def parse_prophet_results(prophet_results):
+    prophet_results_text = []
+    templated = []
+    with open(prophet_results) as inf:
+        for line in inf:
+            results = ["prophet", "prophage"]
+            results.extend(line.strip().split("\t"))
+            prophet_results_text.append(results)
+    for line in prophet_results_text:
+        subresults = []
+        for i in [0, 1, 2, 4, 5]:
+            subresults.append(line[i])
+        templated.append(subresults)
+    return templated
+
+
+def parse_mlplasmids_results(mlplasmids_results):
+    mlplasmids_results_text = []
+    templated = []
+    with open(mlplasmids_results) as inf:
+        for line in inf:
+            # here we add 1 as a start index, and we will use the
+            #  contig length as the end.  Its not great, but its what we have
+            results = ["mlplasmids", "plasmid", "0"]
+            results.extend(line.strip().split("\t"))
+            mlplasmids_results_text.append(results)
+    for line in mlplasmids_results_text:
+        if line[5] == '"Plasmid"':
+            subresults = []
+            for i in [0, 1, 6, 2, 7]:
+                subresults.append(line[i])
+            templated.append(subresults)
+    return templated
+
+
+def write_sequence_regions_of_interest(contigs, output_path,  all_results):
+    """write out all regions of interest to a single fasta file
+    """
+    total_length = 0
+    with open(contigs, "r") as inf, open(output_path, "w") as outf:
+        for rec in SeqIO.parse(inf, "fasta"):
+            for program, type, recid, start, stop in all_results:
+                if rec.id == recid:
+                    start, stop = int(start), int(stop)
+                    header = \
+                        "lcl|{program}|{type}|{recid}:{start}-{stop}".format(
+                            **locals())
+                    total_length = total_length + (stop - start)
+                    SeqIO.write(
+                        SeqRecord(
+                            # account for 1 index in ext tools
+                            rec.seq[start - 1: stop - 1],
+                            id=header,
+                            description="",
+                            name=""
+                        ),
+                        outf, "fasta"
+                    )
+    print("wrote out %i bases" % total_length)
+
+
 def main(args=None):
     if args is None:
         args = get_args()
@@ -107,7 +168,7 @@ def main(args=None):
             raise ValueError("File not found - something went wrong in step 1 with prokak")
 
 
-    prokka_new_gff = glob.glob(os.path.join(args.prokka_dir, "*_new.gbk"))[0]
+    prokka_new_gff = os.path.splitext(prokka_gbk)[0] + "_new.gbk"
     if args.stage < 3:
         print( "Reformatting gff")
         print(os.getcwd())
@@ -182,36 +243,16 @@ def main(args=None):
 
     ###########################################################################
     # program type sequence start end
-    all_results = []
-    prophet_results_text = []
-    mlplasmids_results_text = []
-    with open(prophet_results) as inf:
-        for line in inf:
-            results = ["prophet", "prophage"]
-            results.extend(line.strip().split("\t"))
-            prophet_results_text.append(results)
-    with open(mlplasmids_results) as inf:
-        for line in inf:
-            # here we add 1 as a start index, and we will use the contig length as the end
-            results = ["mlplasmids", "plasmid", "0"]
-            results.extend(line.strip().split("\t"))
-            mlplasmids_results_text.append(results)
-    print(prophet_results_text)
-    print(mlplasmids_results_text)
-    for line in prophet_results_text:
-        subresults = []
-        for i in [0, 1, 2, 4, 5]:
-            subresults.append(line[i])
-        all_results.append(subresults)
-    for line in mlplasmids_results_text:
-        if line[5] == '"Plasmid"':
-            subresults = []
-            for i in [0, 1, 6, 2, 7]:
-                subresults.append(line[i])
-            all_results.append(subresults)
+    prophet_parsed_results = parse_prophet_results(prophet_results)
+    mlplasmids_parsed_results = parse_mlplasmids_results(mlplasmids_results)
+    all_results.extend(prophet_parsed_results, mlplasmids_parsed_results)
 
-    print("sjjvajsjvajsjvavjjas")
     print(all_results)
+    output_path = os.path.join(output_root, "mobile_genome.fasta")
+    write_sequence_regions_of_interest(
+        contigs=args.contigs,
+        output_path=output_path,
+        all_results=all_results)
 
 
 if __name__ == "__main__":
