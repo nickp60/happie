@@ -26,12 +26,6 @@ For now, you have to make a conda env and then do a bit on manual stuff, cuase y
 After that, the conda env:
 
 ```
-conda create -n mobilephone emboss bedtools perl==5.22.0.1 perl-bioperl mob_suite perl-log-log4perl  perl-moose perl-config-simple hmmer
-source activate mobilephone
-# on osx legacy blast is not avaiable, you will need to get a compatible version from the biocore channel
-conda install -c biocore bast-legacy
-source deactivate; source activate mobilephone
-./INSTALL.sh # this takes care of gettig the ProphET database,etc
+conda create -n mobilephone prokka  r-base r-r.utils r-devtools r-mlr emboss bedtools #perl==5.22.0.1 perl-bioperl mob_suite perl-log-log4perl  perl-moose perl-config-simple hmmer
+./INSTALL.sh # this takes care of getting the ProphET database,etc
 ```
-
-cpanm install MooseX::Singleton

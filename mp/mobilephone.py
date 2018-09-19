@@ -61,6 +61,11 @@ def get_args():  # pragma: no cover
     return args
 
 
+def test_exes(exes):
+    for exe in exes:
+        if shutil.which(exe) is None:
+            raise ValueError("%s executable not found")
+
 def parse_prophet_results(prophet_results):
     prophet_results_text = []
     templated = []
@@ -138,6 +143,7 @@ def main(args=None):
     island_results = os.path.join(output_root, "dimob", "results.txt")
     mlplasmids_dir = os.path.join(output_root, "mlplasmids", "")
     mlplasmids_results = os.path.join(output_root, "mlplasmids", "results.txt")
+    test_exes(exes=["prokka"])
     if args.stage < 2:
         for path in [prophet_dir, mobsuite_dir, mlplasmids_dir]:
             os.makedirs(path, exist_ok=False)
@@ -146,8 +152,9 @@ def main(args=None):
         args.cores = multiprocessing.cpu_count()
     if args.stage < 2:
         print("running prokka")
-        prokka_cmd = "{exe} {file} -o {outdir} --prefix {name} --fast --cpus {cpus}".format(
-            exe="prokka", file=args.contigs, outdir=args.prokka_dir, name=args.name, cpus=args.cores)
+        prokka_cmd = "{exe} {file} -o {outdir} --prefix {name} --fast --cpus {cpus} 2> {log}".format(
+            exe=shutil.which("prokka"), file=args.contigs, outdir=args.prokka_dir, name=args.name, cpus=args.cores,
+            log=os.path.join(output_root, "log.txt"))
         print(prokka_cmd)
         subprocess.run([prokka_cmd],
                        shell=sys.platform != "win32",
@@ -205,16 +212,16 @@ def main(args=None):
         raise ValueError("Issue with recreating gff %s" % prokka_new_gff)
 
     if args.stage < 4:
-        mobsuite_cmd = \
-            "{exe} --infile {file} --outdir {out} --run_typer --keep_tmp".format(
-                exe="mob_recon", file=prokka_fna, out=mobsuite_dir)
-        print(mobsuite_cmd)
-        shutil.rmtree(mobsuite_dir)
-        subprocess.run([mobsuite_cmd],
-                       shell=sys.platform != "win32",
-                       stdout=subprocess.PIPE,
-                       stderr=subprocess.PIPE,
-                       check=True)
+        # mobsuite_cmd = \
+        #     "{exe} --infile {file} --outdir {out} --run_typer --keep_tmp".format(
+        #         exe="mob_recon", file=prokka_fna, out=mobsuite_dir)
+        # print(mobsuite_cmd)
+        # shutil.rmtree(mobsuite_dir)
+        # subprocess.run([mobsuite_cmd],
+        #                shell=sys.platform != "win32",
+        #                stdout=subprocess.PIPE,
+        #                stderr=subprocess.PIPE,
+        #                check=True)
         mlplasmids_cmd = "{exe} {file} {out} .8 'Escherichia coli'".format(
             exe="Rscript scripts/run_mlplasmids.R",
             file=prokka_fna, out=mlplasmids_results)
