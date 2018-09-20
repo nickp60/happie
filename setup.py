@@ -1,5 +1,5 @@
 """
-Setup for mobilephone
+Setup for happie
 """
 
 # Always prefer setuptools over distutils
@@ -28,7 +28,7 @@ else:
 
 
 if sys.version_info <= (3, 0):
-    sys.stderr.write("ERROR: mobilephone requires Python 3.5 " +
+    sys.stderr.write("ERROR: happie requires Python 3.5 " +
                      "or above...exiting.\n")
     sys.exit(1)
 
@@ -38,17 +38,17 @@ install_reqs = parse_requirements("requirements.txt",
 requirements = [str(ir.req) for ir in install_reqs]
 
 setup(
-    name='mobilephone',
+    name='happie',
     version=verstr,
 
-    description='mobilephone: just the mobile elements',
-    # long_description=long_description,
+    description = \
+        'happie: horizontally acquired partial pangenome of inserted elements',
     long_description="""
     check out the GitHub
     repo for the real README.md file
     """,
 
-    url='https://github.com/nickp60/mobilephone',
+    url='https://github.com/nickp60/happie',
 
     # Author details
     author='Nick Waters',
@@ -74,7 +74,7 @@ setup(
     # },
     entry_points={
        'console_scripts': [
-           'mobilephone=mp.mobilephone:main',
+           'happie=mp.happie:main',
        ],
     },
 )

@@ -22,7 +22,7 @@ sys.path.append(os.path.join(
     os.path.dirname(os.path.dirname(__file__)), "mp"))
 
 
-from mp.mobilephone import parse_prophet_results, parse_mlplasmids_results, \
+from mp.happie import parse_prophet_results, parse_mlplasmids_results, \
     write_sequence_regions_of_interest
 sys.dont_write_bytecode = True
 
@@ -33,7 +33,7 @@ logger = logging
                  "Subprocess.call among other things wont run if tried " +
                  " with less than python 3.5")
 class MpTestCase(unittest.TestCase):
-    """ tests for mobilephone
+    """ tests for happie
     """
     def setUp(self):
         self.test_dir = os.path.join(os.path.dirname(__file__),
