@@ -19,7 +19,7 @@ cpanm install GD::SVG
 perl ./submodules/ProphET/ProphET_standalone.pl --fasta_in ./submodules/ProphET/test.fasta  --gff_in ./submodules/ProphET/test.gff --outdir t
 
 
-
+python setup.py develop
 # for dimob, we need a whole new env, and we need to fix some unescaped regexes with a horible sed call
 # conda create -n dimob perl-bioperl perl-log-log4perl perl-moose perl-config-simple hmmer
 

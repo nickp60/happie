@@ -41,6 +41,9 @@ def get_args():  # pragma: no cover
     optional.add_argument("--skip_dimob", dest='skip_dimob',
                           action="store_true",
                           help="skip island finding.")
+    optional.add_argument("--skip_rename", dest='skip_rename',
+                          action="store_true",
+                          help="skip initial contig renaming.")
     optional.add_argument("-s", "--stage", dest='stage',
                           choices=[1, 2, 3, 4, 5],
                           help="stage, if restarting:" +
@@ -151,6 +154,21 @@ def main(args=None):
     if args.cores is None:
         args.cores = multiprocessing.cpu_count()
     if args.stage < 2:
+        if not args.skip_rename:
+            dest_fasta = os.path.join(output_root, "new_fasta.fasta")
+            with open(args.contigs, "r") as inf, open(dest_fasta, "w") as outf:
+                for i, rec in enumerate(SeqIO.parse(inf, "fasta")):
+                    header = "lcl_" + str(i+1)
+                    SeqIO.write(
+                        SeqRecord(
+                            rec.seq,
+                            id=header,
+                            description="",
+                            name=""
+                        ),
+                        outf, "fasta"
+                    )
+            args.contigs = dest_fasta
         print("running prokka")
         prokka_cmd = "{exe} {file} -o {outdir} --prefix {name} --fast --cpus {cpus} 2> {log}".format(
             exe=shutil.which("prokka"), file=args.contigs, outdir=args.prokka_dir, name=args.name, cpus=args.cores,
@@ -175,7 +193,7 @@ def main(args=None):
             raise ValueError("File not found - something went wrong in step 1 with prokak")
 
 
-    prokka_new_gff = os.path.splitext(prokka_gbk)[0] + "_new.gbk"
+    prokka_new_gff = os.path.splitext(prokka_gbk)[0] + "_new.gff"
     if args.stage < 3:
         print( "Reformatting gff")
         print(os.getcwd())
@@ -185,10 +203,11 @@ def main(args=None):
         os.chdir("./submodules/ProphET/UTILS.dir/GFFLib/")
         print(os.getcwd())
         new_gff_cmd = \
-            "{exe} --input {file} --output {o} --add_missing_features".format(
+            "{exe} --input {file} --output {o} --add_missing_features 2> {log}".format(
                 exe="./gff_rewrite.pl",
                 file=prokka_gff,
-                o=prokka_new_gff)
+                o=prokka_new_gff,
+                log=os.path.join(output_root, "gff_rewrite_log.txt"))
         subprocess.run([new_gff_cmd],
                        shell=sys.platform != "win32",
                        stdout=subprocess.PIPE,
@@ -199,9 +218,10 @@ def main(args=None):
         print(os.getcwd())
         #######################################################################
         shutil.rmtree(prophet_dir)
-        prophet_cmd = "{exe} --fasta_in  {file} --gff_in {gff} --outdir {out}".format(
+        prophet_cmd = "{exe} --fasta_in  {file} --gff_in {gff} --outdir {out} 2> {log}".format(
             exe="perl ./submodules/ProphET/ProphET_standalone.pl",
-            file=prokka_fna, gff=prokka_new_gff, out=prophet_dir)
+            file=prokka_fna, gff=prokka_new_gff, out=prophet_dir,
+            log=os.path.join(output_root, "ProphET_log.txt"))
         print(prophet_cmd)
         subprocess.run([prophet_cmd],
                        shell=sys.platform != "win32",
