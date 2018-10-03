@@ -146,6 +146,8 @@ def main(args=None):
     island_results = os.path.join(output_root, "dimob", "results.txt")
     mlplasmids_dir = os.path.join(output_root, "mlplasmids", "")
     mlplasmids_results = os.path.join(output_root, "mlplasmids", "results.txt")
+    cafe_dir = os.path.join(output_root, "cafe", "")
+    cafe_results = os.path.join(output_root, "cafe", "results.txt")
     test_exes(exes=["prokka"])
     if args.stage < 2:
         for path in [prophet_dir, mobsuite_dir, mlplasmids_dir]:
@@ -255,6 +257,29 @@ def main(args=None):
                        stdout=subprocess.PIPE,
                        stderr=subprocess.PIPE,
                        check=True)
+    if args.stage < 5:
+                print( "Reformatting gff")
+        print(os.getcwd())
+
+        #######################################################################
+        # try not to vomit again
+        os.chdir("./submodules/CAFE")
+        print(os.getcwd())
+        cafe_cmd = \
+            "{exe} -gbk {file} --out {o} --verbose 2> {log}".format(
+                exe="perl cafe",
+                file=prokka_gbk,
+                o=cafe_results,
+                log=os.path.join(output_root, "cafe_log.txt"))
+        subprocess.run([cafe_cmd],
+                       shell=sys.platform != "win32",
+                       stdout=subprocess.PIPE,
+                       stderr=subprocess.PIPE,
+                       check=True)
+        #cwd=os.getcwd())
+        os.chdir("../../../../")
+        print(os.getcwd())
+        #######################################################################
 
     for path in [mlplasmids_results]:
         if not os.path.exists(prokka_new_gff):
