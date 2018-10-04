@@ -2,56 +2,98 @@
 set -e
 source activate mobilephone
 
-case $1 in
-    m)
-	# on osx legacy blast is not avaiable, you will need to get a compatible version from the biocore channel
-	conda install -c biocore blast-legacy
-	conda install perl-moose perl-test-requires perl-test-warnings perl-test-fatal perl-test-most
-	;;
-    p)
 
-	cpanm install MooseX::Singleton --installdeps --force # The tests fail cause of a missing dependency.  There be dragons...
-	cpanm install Bio::Coordinate
-	cpanm install Bio::Graphics
-	cpanm install GD
-	cpanm install GD::SVG
+target=$1
 
-	cd submodules/ProphET
-	./INSTALL.pl
-	cd ../../
-	;;
-    u)
-	cd submodules/ProphET
-	./INSTALL.pl --updatedb
-	cd ../../
-	;;
-    t)
-	# test prophet
-	perl ./submodules/ProphET/ProphET_standalone.pl --fasta_in ./submodules/ProphET/test.fasta  --gff_in ./submodules/ProphET/test.gff --outdir t
-	;;
-    h)
+function install_prophet {
+    cd submodules/ProphET
+    ./INSTALL.pl
+    cd ../../
+}
 
-	python setup.py develop
-	;;
-    # d)
+function update_prophet {
+    echo "updating Prophet's prophage database"
+    cd submodules/ProphET
+    ./INSTALL.pl --update_db_only
+    cd ../../
+}
 
+function test_prophet {
+    # test prophet
+    perl ./submodules/ProphET/ProphET_standalone.pl --fasta_in ./submodules/ProphET/test.fasta  --gff_in ./submodules/ProphET/test.gff --outdir t
+
+}
+
+
+function install_cafe {
+    cd submodules/CAFE/
+    make
+    cd ../../
+    ln -s submodules/CAFE/seg_clus seg_clus
+}
+
+function install_dimob {
 	# # for dimob, we need a whole new env, and we need to fix some unescaped regexes with a horible sed call
 	# conda create -n dimob perl-bioperl perl-log-log4perl perl-moose perl-config-simple hmmer
 	# source activate dimob
 
 	# #backup
 	# cp ./submodules/islandpath/lib/Dimob/Config.pm ./submodules/islandpath/lib/Dimob/raw_Config.pm
-	# cat ./submodules/islandpath/lib/Dimob/raw_Config.pm | sed s/'{{.+}}'/'\{\\\{.+\\\}\}'/g > ./submodules/islandpath/lib/Dimob/Config.pm
+    # cat ./submodules/islandpath/lib/Dimob/raw_Config.pm | sed s/'{{.+}}'/'\{\\\{.+\\\}\}'/g > ./submodules/islandpath/lib/Dimob/Config.pm
+    echo "dimob no longer implemented"
+    exit 1
+}
 
-    #       ;;
+function install_dependencies {
+    # on osx legacy blast is not avaiable, you will need to get a compatible version from the biocore channel
+    conda install -c biocore blast-legacy
+    conda install perl-moose perl-test-requires perl-test-warnings perl-test-fatal perl-test-most
 
-    c)
-    # Install CAFE
-	cd submodules/CAFE/
-	make
-	cd ../../
-	;;
-    *)
-	echo "USAGE INSTALL.sh <a>"
-	;;
-esac
+    # deal with perl dependencies not available via conda
+
+    cpanm install MooseX::Singleton --installdeps --force # The tests fail cause of a missing dependency.  There be dragons...
+    cpanm install Bio::Coordinate
+    cpanm install Bio::Graphics
+    cpanm install GD
+    cpanm install GD::SVG
+
+}
+
+function install_all {
+    install_prophet
+    install_cafe
+    python setup.py develop
+
+}
+
+function main {
+    case $1 in
+	p)
+	    install_prophet
+	    ;;
+	u)
+	    update_prophet
+	    ;;
+	t)
+	    test_prophet
+	    ;;
+	a)
+	    install_all
+	    ;;
+	b)
+	    install_dimob
+            ;;
+	c)
+	    install_cafe
+	    ;;
+	d)
+	    install_dependencies
+	    ;;
+	*)
+	    echo "USAGE INSTALL.sh <a>"
+	    ;;
+    esac
+}
+
+
+main $target

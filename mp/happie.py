@@ -20,7 +20,7 @@ from . import __version__
 
 def get_args():  # pragma: no cover
     parser = argparse.ArgumentParser(
-        description="extract the mobile elements and run pangenome analysis on",
+        description="extract the mobile elements for pangenome analysis",
         add_help=False)
     parser.add_argument("-c", "--contigs", action="store",
                         help="FASTA formatted genome or set of contigs",
@@ -86,6 +86,25 @@ def parse_prophet_results(prophet_results):
 
 
 def parse_mlplasmids_results(mlplasmids_results):
+    mlplasmids_results_text = []
+    templated = []
+    with open(mlplasmids_results) as inf:
+        for line in inf:
+            # here we add 1 as a start index, and we will use the
+            #  contig length as the end.  Its not great, but its what we have
+            results = ["mlplasmids", "plasmid", "0"]
+            results.extend(line.strip().split("\t"))
+            mlplasmids_results_text.append(results)
+    for line in mlplasmids_results_text:
+        if line[5] == '"Plasmid"':
+            subresults = []
+            for i in [0, 1, 6, 2, 7]:
+                subresults.append(line[i])
+            templated.append(subresults)
+    return templated
+
+
+def parse_cafe_results(cafe_results):
     mlplasmids_results_text = []
     templated = []
     with open(mlplasmids_results) as inf:
@@ -263,8 +282,8 @@ def main(args=None):
 
         #######################################################################
         # try not to vomit again
-        os.chdir("./submodules/CAFE")
-        print(os.getcwd())
+        # os.chdir("./submodules/CAFE")
+        # print(os.getcwd())
         cafe_cmd = \
             "{exe} -gbk {file} --out {o} --verbose 2> {log}".format(
                 exe="perl cafe",
@@ -277,7 +296,7 @@ def main(args=None):
                        stderr=subprocess.PIPE,
                        check=True)
         #cwd=os.getcwd())
-        os.chdir("../../../../")
+        os.chdir("../../")
         print(os.getcwd())
         #######################################################################
 
