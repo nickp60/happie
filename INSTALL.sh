@@ -47,19 +47,20 @@ function install_dimob {
 function install_dependencies {
     # on osx legacy blast is not avaiable, you will need to get a compatible version from the biocore channel
     conda install -c biocore blast-legacy
-    conda install perl-moose perl-test-requires perl-test-warnings perl-test-fatal perl-test-most
+    conda install perl-moose perl-test-requires perl-test-warnings perl-test-fatal perl-test-most perl-gd
 
     # deal with perl dependencies not available via conda
 
     cpanm install MooseX::Singleton --installdeps --force # The tests fail cause of a missing dependency.  There be dragons...
     cpanm install Bio::Coordinate
-    cpanm install Bio::Graphics
-    cpanm install GD
-    cpanm install GD::SVG
+    cpanm install Bio::Graphics --force
+    # cpanm install GD --force
+    cpanm install GD::SVG --install-deps --force
 
 }
 
 function install_all {
+    install_dependencies
     install_prophet
     install_cafe
     python setup.py develop

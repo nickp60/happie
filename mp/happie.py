@@ -22,12 +22,12 @@ def get_args():  # pragma: no cover
     parser = argparse.ArgumentParser(
         description="extract the mobile elements for pangenome analysis",
         add_help=False)
-    parser.add_argument("-c", "--contigs", action="store",
+    parser.add_argument("--contigs", action="store",
                         help="FASTA formatted genome or set of contigs",
                         required="-p" not in sys.argv)
     parser.add_argument("-p", "--prokka_dir", action="store",
                         help="prokka file",
-                        required="-c" not in sys.argv)
+                        required="--contigs" not in sys.argv)
     parser.add_argument("-o", "--output", action="store",
                         help="destination dir", required=True)
 
@@ -44,7 +44,12 @@ def get_args():  # pragma: no cover
     optional.add_argument("--skip_rename", dest='skip_rename',
                           action="store_true",
                           help="skip initial contig renaming.")
-    optional.add_argument("-s", "--stage", dest='stage',
+    optional.add_argument("--elements", dest='elements',
+                          action="store", nargs="*",
+                          default=["plasmids", "islands", "prophages"],
+                          choices=["plasmids", "islands", "prophages"],
+                          help="skip initial contig renaming.")
+    optional.add_argument("-s", "--restart_stage", dest='restart_stage',
                           choices=[1, 2, 3, 4, 5],
                           help="stage, if restarting:" +
                           "1 - from the begining, run prokka |" +
@@ -153,7 +158,7 @@ def main(args=None):
     if args is None:
         args = get_args()
     output_root = os.path.abspath(os.path.expanduser(args.output))
-    if args.stage == 1:
+    if args.restart_stage == 1:
         os.makedirs(output_root, exist_ok=False)
     # make output dir names
     if args.prokka_dir is None:
@@ -168,13 +173,13 @@ def main(args=None):
     cafe_dir = os.path.join(output_root, "cafe", "")
     cafe_results = os.path.join(output_root, "cafe", "results.txt")
     test_exes(exes=["prokka"])
-    if args.stage < 2:
+    if args.restart_stage < 2:
         for path in [prophet_dir, mobsuite_dir, mlplasmids_dir]:
             os.makedirs(path, exist_ok=False)
 
     if args.cores is None:
         args.cores = multiprocessing.cpu_count()
-    if args.stage < 2:
+    if args.restart_stage < 2:
         if not args.skip_rename:
             dest_fasta = os.path.join(output_root, "new_fasta.fasta")
             with open(args.contigs, "r") as inf, open(dest_fasta, "w") as outf:
@@ -205,17 +210,19 @@ def main(args=None):
         args.name = os.path.splitext(os.path.basename(args.prokka_dir))[0]
 
     # set some names of shtuff
-    prokka_fna = glob.glob(os.path.join(args.prokka_dir, "*.fna"))[0]
-    prokka_gbk = glob.glob(os.path.join(args.prokka_dir, "*.gbk"))[0]
-    prokka_gff = glob.glob(os.path.join(args.prokka_dir, "*.gff"))[0]
-
-    for path in [prokka_fna, prokka_gbk, prokka_gff]:
-        if not os.path.exists(path):
-            raise ValueError("File not found - something went wrong in step 1 with prokak")
+    try:
+        prokka_fnas = glob.glob(os.path.join(args.prokka_dir, "*.fna"))[0]
+        prokka_gbks = glob.glob(os.path.join(args.prokka_dir, "*.gbk"))[0]
+        prokka_gffs = glob.glob(os.path.join(args.prokka_dir, "*.gff"))[0]
+    except IndexError:
+        raise IndexError("File not found - something went wrong in step 1 with prokak")
+    # for path in [prokka_fna, prokka_gbk, prokka_gff]:
+    #     if not os.path.exists(path):
+    #         raise ValueError("File not found - something went wrong in step 1 with prokka")
 
 
     prokka_new_gff = os.path.splitext(prokka_gbk)[0] + "_new.gff"
-    if args.stage < 3:
+    if args.restart_stage < 3 and any([x=="prophages" for x in args.elements]):
         print( "Reformatting gff")
         print(os.getcwd())
 
@@ -252,7 +259,7 @@ def main(args=None):
     if not os.path.exists(prokka_new_gff):
         raise ValueError("Issue with recreating gff %s" % prokka_new_gff)
 
-    if args.stage < 4:
+    if args.restart_stage < 4 and any([x=="plasmids" for x in args.elements]):
         # mobsuite_cmd = \
         #     "{exe} --infile {file} --outdir {out} --run_typer --keep_tmp".format(
         #         exe="mob_recon", file=prokka_fna, out=mobsuite_dir)
@@ -276,10 +283,7 @@ def main(args=None):
                        stdout=subprocess.PIPE,
                        stderr=subprocess.PIPE,
                        check=True)
-    if args.stage < 5:
-                print( "Reformatting gff")
-        print(os.getcwd())
-
+    if args.restart_stage < 5 and any([x=="islands" for x in args.elements]):
         #######################################################################
         # try not to vomit again
         # os.chdir("./submodules/CAFE")
@@ -303,7 +307,7 @@ def main(args=None):
     for path in [mlplasmids_results]:
         if not os.path.exists(prokka_new_gff):
             raise ValueError("Issue running mlplasmids gff")
-    if args.stage < 5 and not args.skip_dimob:
+    if args.restart_stage < 5 and not args.skip_dimob:
         island_cmd = "{exe} {file} {out}".format(
             exe="perl ./submodules/islandpath/Dimob.pl",
             file=prokka_gbk, out=island_results)
