@@ -211,9 +211,9 @@ def main(args=None):
 
     # set some names of shtuff
     try:
-        prokka_fnas = glob.glob(os.path.join(args.prokka_dir, "*.fna"))[0]
-        prokka_gbks = glob.glob(os.path.join(args.prokka_dir, "*.gbk"))[0]
-        prokka_gffs = glob.glob(os.path.join(args.prokka_dir, "*.gff"))[0]
+        prokka_fna = glob.glob(os.path.join(args.prokka_dir, "*.fna"))[0]
+        prokka_gbk = glob.glob(os.path.join(args.prokka_dir, "*.gbk"))[0]
+        prokka_gff = glob.glob(os.path.join(args.prokka_dir, "*.gff"))[0]
     except IndexError:
         raise IndexError("File not found - something went wrong in step 1 with prokak")
     # for path in [prokka_fna, prokka_gbk, prokka_gff]:
