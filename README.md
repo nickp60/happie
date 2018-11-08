@@ -14,6 +14,7 @@ These regions are short, and are interestesitng solely because of their context
 ### Insertion Sequnes
 #### OASIS
 
+
 # Install
 
 ```
@@ -29,7 +30,10 @@ For now, you have to make a conda env and then do a bit on manual stuff, cuase y
 After that, the conda env:
 
 ```
-conda create -n happie prokka  r-base r-r.utils r-devtools r-mlr emboss bedtools perl-extutils-pkgconfig
+conda create -n happie prokka   emboss bedtools biopython
+source activate happie
+python setup.py install
+happy_install
 ./INSTALL.sh # this takes care of getting the ProphET database,etc
 ```
 

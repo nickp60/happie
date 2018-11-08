@@ -1,0 +1,18 @@
+# programs for happie pipeline
+programs:
+  prokka:
+    version: 1.12
+    maintainer: blasterlab
+    name: prokka
+  prophet:
+    version: latest
+    maintainer: nickp60
+    name: prophet
+  mlplasmids:
+    version: latest
+    maintainer: nickp60
+    name: mlplasmids
+  dimob:
+    version: 1.0.0
+    maintainer: brinkmanlab
+    name: islandpath

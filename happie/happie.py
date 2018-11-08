@@ -10,13 +10,14 @@ import itertools
 import multiprocessing
 import subprocess
 import glob
+import pkg_resources
 
 from Bio.Seq import Seq
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
 
 from . import __version__
-
+DATA_PATH = pkg_resources.resource_filename('happie', 'containers.yaml')
 
 def get_args():  # pragma: no cover
     parser = argparse.ArgumentParser(
@@ -31,6 +32,10 @@ def get_args():  # pragma: no cover
     parser.add_argument("-o", "--output", action="store",
                         help="destination dir", required=True)
 
+    parser.add_argument("--virtualization", action="store",
+                        help="Whether this will be run with Docker or Singularity",
+                        choices=["docker", "singularity"],
+                        default="docker")
     optional = parser.add_argument_group('optional arguments')
     optional.add_argument("--cores", dest='cores', default=4,
                           help="cores to use" +
@@ -73,6 +78,16 @@ def test_exes(exes):
     for exe in exes:
         if shutil.which(exe) is None:
             raise ValueError("%s executable not found")
+
+
+def make_containerized_cmd(args, command, indir, outdir):
+    if args.virtualization == "docker":
+        cmd = "docker run --rm -v " +
+        "{indir}:/input -v {outdir}:/output {command}".format(**locals())
+    else:
+        cmd = "singularity exec --rm -B " +
+        "{indir}:/input -v {outdir}:/output {command}".format(**locals())
+    return cmd
 
 def parse_prophet_results(prophet_results):
     prophet_results_text = []
@@ -196,7 +211,10 @@ def main(args=None):
                     )
             args.contigs = dest_fasta
         print("running prokka")
-        prokka_cmd = "{exe} {file} -o {outdir} --prefix {name} --fast --cpus {cpus} 2> {log}".format(
+        prokka_cmd = make_containerized_cmd(
+            args=args,
+            command=/bin, indir, outdir)
+        ("{exe} {file} -o {outdir} --prefix {name} --fast --cpus {cpus} 2> {log}".format(
             exe=shutil.which("prokka"), file=args.contigs, outdir=args.prokka_dir, name=args.name, cpus=args.cores,
             log=os.path.join(output_root, "log.txt"))
         print(prokka_cmd)

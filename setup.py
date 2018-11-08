@@ -17,7 +17,7 @@ except ImportError: # for pip <= 9.0.3
 
 here = path.abspath(path.dirname(__file__))
 
-VERSIONFILE = "mp/_version.py"
+VERSIONFILE = "happie/_version.py"
 verstrline = open(VERSIONFILE, "rt").read()
 VSRE = r"^__version__ = ['\"]([^'\"]*)['\"]"
 mo = re.search(VSRE, verstrline, re.M)
@@ -68,13 +68,13 @@ setup(
     ],
     keywords='bioinformatics evolution genomics development',
     packages=find_packages(),
-    # include_package_data=True,
-    # package_data={
-    #    '': [path.join(__name__, "tests", "refs/*")],
-    # },
+    package_data={
+       'happie': ["happie/data/containers.yaml"],
+    },
     entry_points={
        'console_scripts': [
-           'happie=mp.happie:main',
+           'happie=happie.happie:main',
+           'happie_install_or_update=happie.install:main',
        ],
     },
 )
