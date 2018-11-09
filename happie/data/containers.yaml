@@ -2,17 +2,21 @@
 programs:
   prokka:
     version: 1.12
-    maintainer: blasterlab
+    maintainer: ummidock
     name: prokka
+    exe: prokka
   prophet:
     version: latest
     maintainer: nickp60
     name: prophet
+    exe: "carton exec /ProphET/ProphET_standalone.pl"
   mlplasmids:
     version: latest
     maintainer: nickp60
     name: mlplasmids
+    exe: "Rscript /bin/run_mlplasmids.R"
   dimob:
     version: 1.0.0
     maintainer: brinkmanlab
     name: islandpath
+    exe: islandpath

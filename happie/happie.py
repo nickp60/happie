@@ -17,7 +17,7 @@ from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
 
 from . import __version__
-DATA_PATH = pkg_resources.resource_filename('happie', 'containers.yaml')
+from . import shared_methods as sm
 
 def get_args():  # pragma: no cover
     parser = argparse.ArgumentParser(
@@ -26,9 +26,9 @@ def get_args():  # pragma: no cover
     parser.add_argument("--contigs", action="store",
                         help="FASTA formatted genome or set of contigs",
                         required="-p" not in sys.argv)
-    parser.add_argument("-p", "--prokka_dir", action="store",
-                        help="prokka file",
-                        required="--contigs" not in sys.argv)
+    # parser.add_argument("-p", "--prokka_dir", action="store",
+    #                     help="prokka file",
+    #                     required="--contigs" not in sys.argv)
     parser.add_argument("-o", "--output", action="store",
                         help="destination dir", required=True)
 
@@ -80,13 +80,20 @@ def test_exes(exes):
             raise ValueError("%s executable not found")
 
 
-def make_containerized_cmd(args, command, indir, outdir):
+
+def make_containerized_cmd(args, command, indir=None, outdir=None):
+    if indir is None:
+        indir = os.getcwd()
+    if outdir is None:
+        outdir = os.getcwd()
     if args.virtualization == "docker":
-        cmd = "docker run --rm -v " +
-        "{indir}:/input -v {outdir}:/output {command}".format(**locals())
+        cmd = str(
+            "docker run --rm -v " +
+            "{indir}:/input -v {outdir}:/output {command}").format(**locals())
     else:
-        cmd = "singularity exec --rm -B " +
-        "{indir}:/input -v {outdir}:/output {command}".format(**locals())
+        cmd = str(
+            "singularity exec --rm -B " +
+        "{indir}:/input -v {outdir}:/output {command}").format(**locals())
     return cmd
 
 def parse_prophet_results(prophet_results):
@@ -176,6 +183,8 @@ def main(args=None):
     if args.restart_stage == 1:
         os.makedirs(output_root, exist_ok=False)
     # make output dir names
+    config_data = sm.get_containers_manifest()
+    images_dict = sm.parse_docker_images(config_data)
     if args.prokka_dir is None:
         args.prokka_dir = os.path.join(output_root, "prokka")
     prophet_dir = os.path.join(output_root, "ProphET", "")
@@ -187,7 +196,7 @@ def main(args=None):
     mlplasmids_results = os.path.join(output_root, "mlplasmids", "results.txt")
     cafe_dir = os.path.join(output_root, "cafe", "")
     cafe_results = os.path.join(output_root, "cafe", "results.txt")
-    test_exes(exes=["prokka"])
+    test_exes(exes=[args.virtualization])
     if args.restart_stage < 2:
         for path in [prophet_dir, mobsuite_dir, mlplasmids_dir]:
             os.makedirs(path, exist_ok=False)
@@ -213,10 +222,18 @@ def main(args=None):
         print("running prokka")
         prokka_cmd = make_containerized_cmd(
             args=args,
-            command=/bin, indir, outdir)
-        ("{exe} {file} -o {outdir} --prefix {name} --fast --cpus {cpus} 2> {log}".format(
-            exe=shutil.which("prokka"), file=args.contigs, outdir=args.prokka_dir, name=args.name, cpus=args.cores,
-            log=os.path.join(output_root, "log.txt"))
+            command=str(
+                "{image} {exe} " +
+                "/input/{infile} -o /output/{outdir} --prefix {name} " +
+                "--fast --cpus {cpus} 2> {log}").format(
+                    image=images_dict['prokka']["image"],
+                    exe=images_dict['prokka']["exe"],
+                    infile=os.path.relpath(args.contigs),
+                    outdir=os.path.relpath(args.prokka_dir),
+                    name=args.name,
+                    cpus=args.cores,
+                    log=os.path.join(output_root, "log.txt"))
+            )
         print(prokka_cmd)
         subprocess.run([prokka_cmd],
                        shell=sys.platform != "win32",
@@ -233,7 +250,7 @@ def main(args=None):
         prokka_gbk = glob.glob(os.path.join(args.prokka_dir, "*.gbk"))[0]
         prokka_gff = glob.glob(os.path.join(args.prokka_dir, "*.gff"))[0]
     except IndexError:
-        raise IndexError("File not found - something went wrong in step 1 with prokak")
+        raise IndexError("File not found - something went wrong in step 1 with prokka")
     # for path in [prokka_fna, prokka_gbk, prokka_gff]:
     #     if not os.path.exists(path):
     #         raise ValueError("File not found - something went wrong in step 1 with prokka")
@@ -241,33 +258,46 @@ def main(args=None):
 
     prokka_new_gff = os.path.splitext(prokka_gbk)[0] + "_new.gff"
     if args.restart_stage < 3 and any([x=="prophages" for x in args.elements]):
-        print( "Reformatting gff")
-        print(os.getcwd())
+        # print( "Reformatting gff")
+        # print(os.getcwd())
 
-        #######################################################################
-        # try not to vomit
-        os.chdir("./submodules/ProphET/UTILS.dir/GFFLib/")
-        print(os.getcwd())
-        new_gff_cmd = \
-            "{exe} --input {file} --output {o} --add_missing_features 2> {log}".format(
-                exe="./gff_rewrite.pl",
-                file=prokka_gff,
-                o=prokka_new_gff,
-                log=os.path.join(output_root, "gff_rewrite_log.txt"))
-        subprocess.run([new_gff_cmd],
-                       shell=sys.platform != "win32",
-                       stdout=subprocess.PIPE,
-                       stderr=subprocess.PIPE,
-                       check=True)
-        #cwd=os.getcwd())
-        os.chdir("../../../../")
-        print(os.getcwd())
-        #######################################################################
-        shutil.rmtree(prophet_dir)
-        prophet_cmd = "{exe} --fasta_in  {file} --gff_in {gff} --outdir {out} 2> {log}".format(
-            exe="perl ./submodules/ProphET/ProphET_standalone.pl",
-            file=prokka_fna, gff=prokka_new_gff, out=prophet_dir,
-            log=os.path.join(output_root, "ProphET_log.txt"))
+        # #######################################################################
+        # # try not to vomit
+        # os.chdir("./submodules/ProphET/UTILS.dir/GFFLib/")
+        # print(os.getcwd())
+        # new_gff_cmd = \
+        #     "{exe} --input {file} --output {o} --add_missing_features 2> {log}".format(
+        #         exe="./gff_rewrite.pl",
+        #         file=prokka_gff,
+        #         o=prokka_new_gff,
+        #         log=os.path.join(output_root, "gff_rewrite_log.txt"))
+        # subprocess.run([new_gff_cmd],
+        #                shell=sys.platform != "win32",
+        #                stdout=subprocess.PIPE,
+        #                stderr=subprocess.PIPE,
+        #                check=True)
+        # #cwd=os.getcwd())
+        # os.chdir("../../../../")
+        # print(os.getcwd())
+        # #######################################################################
+        # shutil.rmtree(prophet_dir)
+        # prophet_cmd = "{exe} --fasta_in  {file} --gff_in {gff} --outdir {out} 2> {log}".format(
+        #     exe="perl ./submodules/ProphET/ProphET_standalone.pl",
+        #     file=prokka_fna, gff=prokka_new_gff, out=prophet_dir,
+        #     log=os.path.join(output_root, "ProphET_log.txt"))
+        prophet_cmd = make_containerized_cmd(
+            args=args,
+            command=str(
+                "{image} {exe} " +
+                "--fasta_in /input/{infilefasta} --gff_in /input/{infilegff} " +
+                "--outdir /output/{outdir}  2> {log}").format(
+                    image=images_dict['prophet']['image'],
+                    exe=images_dict['prophet']['exe'],
+                    infilefasta=os.path.relpath(prokka_fna),
+                    infilegff=os.path.relpath(prokka_gff),
+                    outdir=os.path.relpath(prophet_dir),
+                    log=os.path.join(output_root, "PropheET_log.txt"))
+            )
         print(prophet_cmd)
         subprocess.run([prophet_cmd],
                        shell=sys.platform != "win32",

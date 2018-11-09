@@ -1,0 +1,38 @@
+* Happie
+Happie is a wrapper for several independent programs used to identify different mobile elements.
+
+** Context independent Regions
+These regions are interesting in and of themselves for what genes they carry, etc
+*** Phages
+**** ProphET
+*** Plasmids
+**** mlplasmids
+*** Genomic Islands
+**** CAFE
+** Context-dependedt Regions
+These regions are short, and are interestesitng solely because of their context
+*** Insertion Sequnes
+**** OASIS
+
+
+* Install
+
+Happie can manually be installed from github as follows
+
+#+begin_src
+git clone https://github.com/nickp60/happie
+cd happie
+conda create -n happie  biopython pyyaml
+source activate happie
+python setup.py install
+happy_install_or_update
+#+end_src
+
+That is going to take care of downloading [[link][PeophET]], [[link][prokka]], [[link][mlplasmids]], [[link][dimob]].
+
+* Running
+
+
+
+*** Note
+This module was renamed from "mobilephone", it was just too hard to google.

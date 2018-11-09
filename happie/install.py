@@ -18,7 +18,7 @@ from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
 
 from . import __version__
-
+from . import shared_methods as sm
 
 def get_args():  # pragma: no cover
     parser = argparse.ArgumentParser(
@@ -40,14 +40,6 @@ def get_args():  # pragma: no cover
     args = parser.parse_args()
     return args
 
-def get_containers_manifest():
-    resource_package = pkg_resources.Requirement.parse("happie")
-    print(resource_package)
-    print(pkg_resources.resource_listdir("happie", "data"))
-    datapath = pkg_resources.resource_filename(resource_package, 'happie/data/containers.yaml')
-    print(datapath)
-    with open(datapath, "r") as inf:
-        return yaml.load(inf)
 
 def test_exe_exists(args):
     if args.virtualization == "docker":
@@ -72,19 +64,12 @@ def install_image(args, image_name):
                    stderr=subprocess.PIPE,
                    check=True)
 
-def install_prokka(args):
-    install_image(args, "ummidock/prokka:1.12")
-    # install_image(args, "blaxterlab/prokka")
 
-def install_prophet(args):
-    install_image(args, "nickp60/prophet")
-
-def install_mlplasmids(args):
-    install_image(args, "nickp60/mlplasmids")
-
-def install_dimob(args):
-    install_image(args, "brinkmanlab/islandpath:1.0.0")
-
+def install_programs(args, config):
+    images_dict = sm.parse_docker_images(config)
+    for k, v in images_dict.items():
+        print("installing %s", k)
+        install_image(args, v['image'])
 
 
 def main(args=None):
@@ -98,11 +83,8 @@ def main(args=None):
         print("Error: %s executable is not install or not in PATH",
               args.virtualization)
         sys.exit(1)
-    print(get_containers_manifest())
-    install_prokka(args)
-    install_prophet(args)
-    install_mlplasmids(args)
-    install_dimob(args)
+    config = sm.get_containers_manifest()
+    install_programs(args, config)
 
 
 if __name__ == "__main__":
