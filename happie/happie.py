@@ -26,9 +26,6 @@ def get_args():  # pragma: no cover
     parser.add_argument("--contigs", action="store",
                         help="FASTA formatted genome or set of contigs",
                         required="-p" not in sys.argv)
-    # parser.add_argument("-p", "--prokka_dir", action="store",
-    #                     help="prokka file",
-    #                     required="--contigs" not in sys.argv)
     parser.add_argument("-o", "--output", action="store",
                         help="destination dir", required=True)
 
@@ -43,9 +40,6 @@ def get_args():  # pragma: no cover
     optional.add_argument("-n", "--name", dest='name',
                           help="name of experiment; defaults to file name " +
                           "without extension.", default="test")
-    optional.add_argument("--skip_dimob", dest='skip_dimob',
-                          action="store_true",
-                          help="skip island finding.")
     optional.add_argument("--skip_rename", dest='skip_rename',
                           action="store_true",
                           help="skip initial contig renaming.")
@@ -96,15 +90,31 @@ def make_containerized_cmd(args, command, indir=None, outdir=None):
         "{indir}:/input -v {outdir}:/output {command}").format(**locals())
     return cmd
 
-def parse_prophet_results(prophet_results):
-    prophet_results_text = []
+def parse_prophet_results(results):
+    results_text = []
     templated = []
-    with open(prophet_results) as inf:
+    with open(results) as inf:
         for line in inf:
             results = ["prophet", "prophage"]
             results.extend(line.strip().split("\t"))
-            prophet_results_text.append(results)
-    for line in prophet_results_text:
+            results_text.append(results)
+    for line in results_text:
+        subresults = []
+        for i in [0, 1, 2, 4, 5]:
+            subresults.append(line[i])
+        templated.append(subresults)
+    return templated
+
+
+def parse_dimob_results(results):
+    results_text = []
+    templated = []
+    with open(results) as inf:
+        for line in inf:
+            results = ["dimob", "island"]
+            results.extend(line.strip().split("\t"))
+            results_text.append(results)
+    for line in results_text:
         subresults = []
         for i in [0, 1, 2, 4, 5]:
             subresults.append(line[i])
@@ -113,25 +123,6 @@ def parse_prophet_results(prophet_results):
 
 
 def parse_mlplasmids_results(mlplasmids_results):
-    mlplasmids_results_text = []
-    templated = []
-    with open(mlplasmids_results) as inf:
-        for line in inf:
-            # here we add 1 as a start index, and we will use the
-            #  contig length as the end.  Its not great, but its what we have
-            results = ["mlplasmids", "plasmid", "0"]
-            results.extend(line.strip().split("\t"))
-            mlplasmids_results_text.append(results)
-    for line in mlplasmids_results_text:
-        if line[5] == '"Plasmid"':
-            subresults = []
-            for i in [0, 1, 6, 2, 7]:
-                subresults.append(line[i])
-            templated.append(subresults)
-    return templated
-
-
-def parse_cafe_results(cafe_results):
     mlplasmids_results_text = []
     templated = []
     with open(mlplasmids_results) as inf:
@@ -176,30 +167,57 @@ def write_sequence_regions_of_interest(contigs, output_path,  all_results):
     print("wrote out %i bases" % total_length)
 
 
+def write_out_names_key(inA, inB, outfile):
+    contig_key = []
+    inA_names = []
+    inB_names = []
+    with open(inA, "r") as inAf:
+        for rec in SeqIO.parse(inAf, "fasta"):
+            inA_names.append([len(rec.seq), rec.id])
+    with open(inB, "r") as inBf:
+        for rec in SeqIO.parse(inBf, "fasta"):
+            inB_names.append([len(rec.seq), rec.id])
+    # I hope this never happens
+    assert len(inA_names) == len(inB_names), \
+        "length of fasta before and after prokka is different!"
+    with open(outfile, "w") as outf:
+        outf.write("original_name\toriginal_length\tnew_name\tnew_length\n")
+        for a, b  in zip(sorted(inA_names, reverse=True), \
+                         sorted(inB_names, reverse=True)):
+            outf.write("{}\t{}\t{}\t{}\n".format(
+                a[0], a[1], b[0], b[1]))
+
+
 def main(args=None):
     if args is None:
         args = get_args()
     output_root = os.path.abspath(os.path.expanduser(args.output))
-    if args.restart_stage == 1:
-        os.makedirs(output_root, exist_ok=False)
+    try:
+        if args.restart_stage == 1:
+            os.makedirs(output_root, exist_ok=False)
+    except FileExistsError:
+        print("Output directory already exsists! "+
+              "Please chose other desination or, " +
+              "if restarting previous analysis, set --stages 2 or above")
+        sys.exit(1)
     # make output dir names
     config_data = sm.get_containers_manifest()
     images_dict = sm.parse_docker_images(config_data)
-    if args.prokka_dir is None:
-        args.prokka_dir = os.path.join(output_root, "prokka")
+    prokka_dir = os.path.join(output_root, "prokka")
     prophet_dir = os.path.join(output_root, "ProphET", "")
     prophet_results = os.path.join(prophet_dir, "phages_coords")
     mobsuite_dir = os.path.join(output_root, "mobsuite", "")
     island_dir = os.path.join(output_root, "dimob", "")
-    island_results = os.path.join(output_root, "dimob", "results.txt")
+    island_results = os.path.join(output_root, "dimob", "dimob_results")
     mlplasmids_dir = os.path.join(output_root, "mlplasmids", "")
     mlplasmids_results = os.path.join(output_root, "mlplasmids", "results.txt")
     cafe_dir = os.path.join(output_root, "cafe", "")
     cafe_results = os.path.join(output_root, "cafe", "results.txt")
     test_exes(exes=[args.virtualization])
-    if args.restart_stage < 2:
-        for path in [prophet_dir, mobsuite_dir, mlplasmids_dir]:
-            os.makedirs(path, exist_ok=False)
+    #  make sub directories.  We don't care if they already exist;
+    # cause we clobber them later if they will cause problems for reexecution
+    for path in [prophet_dir, mobsuite_dir, mlplasmids_dir, island_dir]:
+        os.makedirs(path, exist_ok=True)
 
     if args.cores is None:
         args.cores = multiprocessing.cpu_count()
@@ -229,7 +247,7 @@ def main(args=None):
                     image=images_dict['prokka']["image"],
                     exe=images_dict['prokka']["exe"],
                     infile=os.path.relpath(args.contigs),
-                    outdir=os.path.relpath(args.prokka_dir),
+                    outdir=os.path.relpath(prokka_dir),
                     name=args.name,
                     cpus=args.cores,
                     log=os.path.join(output_root, "log.txt"))
@@ -241,56 +259,28 @@ def main(args=None):
                        stderr=subprocess.PIPE,
                        check=True)
     else:
-        args.prokka_dir = os.path.abspath(os.path.expanduser(args.prokka_dir))
-        args.name = os.path.splitext(os.path.basename(args.prokka_dir))[0]
+        prokka_dir = os.path.abspath(os.path.expanduser(prokka_dir))
+        args.name = os.path.splitext(os.path.basename(prokka_dir))[0]
 
     # set some names of shtuff
     try:
-        prokka_fna = glob.glob(os.path.join(args.prokka_dir, "*.fna"))[0]
-        prokka_gbk = glob.glob(os.path.join(args.prokka_dir, "*.gbk"))[0]
-        prokka_gff = glob.glob(os.path.join(args.prokka_dir, "*.gff"))[0]
+        prokka_fna = glob.glob(os.path.join(prokka_dir, "*.fna"))[0]
+        prokka_gbk = glob.glob(os.path.join(prokka_dir, "*.gbk"))[0]
+        prokka_gff = glob.glob(os.path.join(prokka_dir, "*.gff"))[0]
     except IndexError:
         raise IndexError("File not found - something went wrong in step 1 with prokka")
-    # for path in [prokka_fna, prokka_gbk, prokka_gff]:
-    #     if not os.path.exists(path):
-    #         raise ValueError("File not found - something went wrong in step 1 with prokka")
 
-
+    ##########################  finding mobile element ################################3
     prokka_new_gff = os.path.splitext(prokka_gbk)[0] + "_new.gff"
     if args.restart_stage < 3 and any([x=="prophages" for x in args.elements]):
-        # print( "Reformatting gff")
-        # print(os.getcwd())
-
-        # #######################################################################
-        # # try not to vomit
-        # os.chdir("./submodules/ProphET/UTILS.dir/GFFLib/")
-        # print(os.getcwd())
-        # new_gff_cmd = \
-        #     "{exe} --input {file} --output {o} --add_missing_features 2> {log}".format(
-        #         exe="./gff_rewrite.pl",
-        #         file=prokka_gff,
-        #         o=prokka_new_gff,
-        #         log=os.path.join(output_root, "gff_rewrite_log.txt"))
-        # subprocess.run([new_gff_cmd],
-        #                shell=sys.platform != "win32",
-        #                stdout=subprocess.PIPE,
-        #                stderr=subprocess.PIPE,
-        #                check=True)
-        # #cwd=os.getcwd())
-        # os.chdir("../../../../")
-        # print(os.getcwd())
-        # #######################################################################
-        # shutil.rmtree(prophet_dir)
-        # prophet_cmd = "{exe} --fasta_in  {file} --gff_in {gff} --outdir {out} 2> {log}".format(
-        #     exe="perl ./submodules/ProphET/ProphET_standalone.pl",
-        #     file=prokka_fna, gff=prokka_new_gff, out=prophet_dir,
-        #     log=os.path.join(output_root, "ProphET_log.txt"))
+        if os.path.exists(prophet_dir):
+            shutil.rmtree(prophet_dir)
         prophet_cmd = make_containerized_cmd(
             args=args,
             command=str(
                 "{image} {exe} " +
                 "--fasta_in /input/{infilefasta} --gff_in /input/{infilegff} " +
-                "--outdir /output/{outdir}  2> {log}").format(
+                "--outdir /output/{outdir}/  2> {log}").format(
                     image=images_dict['prophet']['image'],
                     exe=images_dict['prophet']['exe'],
                     infilefasta=os.path.relpath(prokka_fna),
@@ -304,84 +294,102 @@ def main(args=None):
                        stdout=subprocess.PIPE,
                        stderr=subprocess.PIPE,
                        check=True)
-    if not os.path.exists(prokka_new_gff):
-        raise ValueError("Issue with recreating gff %s" % prokka_new_gff)
 
     if args.restart_stage < 4 and any([x=="plasmids" for x in args.elements]):
-        # mobsuite_cmd = \
-        #     "{exe} --infile {file} --outdir {out} --run_typer --keep_tmp".format(
-        #         exe="mob_recon", file=prokka_fna, out=mobsuite_dir)
-        # print(mobsuite_cmd)
-        # shutil.rmtree(mobsuite_dir)
-        # subprocess.run([mobsuite_cmd],
-        #                shell=sys.platform != "win32",
-        #                stdout=subprocess.PIPE,
-        #                stderr=subprocess.PIPE,
-        #                check=True)
-        mlplasmids_cmd = "{exe} {file} {out} .8 'Escherichia coli'".format(
-            exe="Rscript scripts/run_mlplasmids.R",
-            file=prokka_fna, out=mlplasmids_results)
-        print(mlplasmids_cmd)
-        try: # to get rid of old results if we are rerunning
+        if os.path.exists(mlplasmids_results):
             os.remove(mlplasmids_results)
-        except FileNotFoundError:
-            pass
+        mlplasmids_cmd = make_containerized_cmd(
+            args=args,
+            command=str(
+                "{image} {exe} " +
+                "/input/{infilefasta} /output/{outdir}  " +
+                ".8 'Escherichia coli 2> {log}").format(
+                    image=images_dict['mlplasmids']['image'],
+                    exe=images_dict['mlplasmids']['exe'],
+                    infilefasta=os.path.relpath(prokka_fna),
+                    outdir=os.path.relpath(mlplasmids_results),
+                    log=os.path.join(output_root, "mlplasmids_log.txt"))
+            )
+        print(mlplasmids_cmd)
         subprocess.run([mlplasmids_cmd],
                        shell=sys.platform != "win32",
                        stdout=subprocess.PIPE,
                        stderr=subprocess.PIPE,
                        check=True)
     if args.restart_stage < 5 and any([x=="islands" for x in args.elements]):
-        #######################################################################
-        # try not to vomit again
-        # os.chdir("./submodules/CAFE")
-        # print(os.getcwd())
-        cafe_cmd = \
-            "{exe} -gbk {file} --out {o} --verbose 2> {log}".format(
-                exe="perl cafe",
-                file=prokka_gbk,
-                o=cafe_results,
-                log=os.path.join(output_root, "cafe_log.txt"))
-        subprocess.run([cafe_cmd],
-                       shell=sys.platform != "win32",
-                       stdout=subprocess.PIPE,
-                       stderr=subprocess.PIPE,
-                       check=True)
-        #cwd=os.getcwd())
-        os.chdir("../../")
-        print(os.getcwd())
-        #######################################################################
+        island_seqs_dir = os.path.join(island_dir, "tmp")
+        island_results_dir = os.path.join(island_dir, "results")
+        if os.path.exists(island_dir):
+            shutil.rmtree(island_dir)
+        for path in [island_dir, island_seqs_dir, island_results_dir]:
+            os.makedirs(path)
+        # dimob doesnt process assemblies; we write out each sequence to a tmp file prior to processing
+        # {id: {gbk: path_to_gbk, results: path_to_results}}
+        island_path_results = {}
+        with open (prokka_gbk, "r") as inf:
+            for i, rec in enumerate(SeqIO.parse(inf, "genbank")):
+                gbk = os.path.join(island_seqs_dir, "%i.gbk" %i)
+                result = os.path.join(island_results_dir, "results_%s" %i)
+                # dimob wont work if number of CDS's is 0
+                if rec.features:
+                    ncds = sum([1 for feat in rec.features if feat.type == "CDS"])
+                    if ncds > 0:
+                        island_path_results[rec.id] = {"gbk": gbk,
+                                             "result": result}
+                        SeqIO.write(rec, gbk, "genbank")
+                    else:
+                        print(str(
+                            "Note: contig {0} does not have any CDSs, " +
+                            "and will not be analyzed with Dimob").format(rec.id))
 
-    for path in [mlplasmids_results]:
-        if not os.path.exists(prokka_new_gff):
-            raise ValueError("Issue running mlplasmids gff")
-    if args.restart_stage < 5 and not args.skip_dimob:
-        island_cmd = "{exe} {file} {out}".format(
-            exe="perl ./submodules/islandpath/Dimob.pl",
-            file=prokka_gbk, out=island_results)
-        print(island_cmd)
-        subprocess.run([island_cmd],
-                       shell=sys.platform != "win32",
-                       stdout=subprocess.PIPE,
-                       stderr=subprocess.PIPE,
-                       check=True)
+        for k, v  in island_path_results.items():
+            # Note that dimob does not have an exe
+            island_cmd = make_containerized_cmd(
+                args=args,
+                command=str(
+                    "{image} /input/{infile} /output/{outdir}" ).format(
+                        image=images_dict['dimob']['image'],
+                        infile=os.path.relpath(v["gbk"]),
+                        outdir=os.path.relpath(v['result']),
+                        log=os.path.join(output_root, "dimob_log.txt"))
+            )
+            print(island_cmd)
+            subprocess.run([island_cmd],
+                           shell=sys.platform != "win32",
+                           stdout=subprocess.PIPE,
+                           stderr=subprocess.PIPE,
+                           check=True)
+            # modify output to include sequence name,
+            #append to final results file
+            with open(v['result'], "r") as inf, open(island_results, "a") as outf:
+                for line in inf:
+                    outf.write(k + "\t" + line)
+
 
 
     ###########################################################################
     # program type sequence start end
     all_results = []
-    prophet_parsed_results = parse_prophet_results(prophet_results)
-    mlplasmids_parsed_results = parse_mlplasmids_results(mlplasmids_results)
-
-    for i in [prophet_parsed_results, mlplasmids_parsed_results]:
-        all_results.extend(i)
+    if any([x=="phages" for x in args.elements]):
+        prophet_parsed_result = parse_prophet_results(prophet_results)
+        all_results.extend(prophet_parsed_result)
+    if any([x=="plasmids" for x in args.elements]):
+        mlplasmids_parsed_result = parse_mlplasmids_results(mlplasmids_results)
+        all_results.extend(mlplasmids_parsed_result)
+    if any([x=="islands" for x in args.elements]):
+        dimob_parsed_result = parse_dimob_results(island_results)
+        all_results.extend(dimob_parsed_result)
 
     print(all_results)
     output_path = os.path.join(output_root, "mobile_genome.fasta")
+    output_key_path = os.path.join(output_root, "names_key")
     write_sequence_regions_of_interest(
-        contigs=args.contigs,
+        contigs=prokka_fna,
         output_path=output_path,
         all_results=all_results)
+    write_out_names_key(inA=args.contigs, inB=prokka_fna,
+                        outfile=output_key_path)
+
 
 
 if __name__ == "__main__":

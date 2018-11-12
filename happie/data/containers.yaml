@@ -19,4 +19,4 @@ programs:
     version: 1.0.0
     maintainer: brinkmanlab
     name: islandpath
-    exe: islandpath
+    exe: null
