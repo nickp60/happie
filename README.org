@@ -28,11 +28,22 @@ python setup.py install
 happy_install_or_update
 #+end_src
 
-That is going to take care of downloading [[link][PeophET]], [[link][prokka]], [[link][mlplasmids]], [[link][dimob]].
+That is going to take care of downloading Docker images for  [[link][ProphET]], [[link][prokka]], [[link][mlplasmids]], [[link][dimob]].
 
 * Running
+(Optional) get some test data:
 
+#+begin_src
+bash ./get_test_data.sh
+#+end_src
 
+And try running it!
+
+#+begin_src
+happie --contigs ./test_data/ecoli104.fna  --output tmpresults
+#+end_src
+
+You should get an output file of
 
 *** Note
 This module was renamed from "mobilephone", it was just too hard to google.

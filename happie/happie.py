@@ -34,8 +34,13 @@ def get_args():  # pragma: no cover
                         choices=["docker", "singularity"],
                         default="docker")
     optional = parser.add_argument_group('optional arguments')
-    optional.add_argument("--cores", dest='cores', default=4,
+    optional.add_argument("--cores", dest='cores',
+                          default=4,
                           help="cores to use" +
+                          "without extension.")
+    optional.add_argument("--memory", dest='memory',
+                          default=4,
+                          help="memory limit to use" +
                           "without extension.")
     optional.add_argument("-n", "--name", dest='name',
                           help="name of experiment; defaults to file name " +
@@ -76,14 +81,20 @@ def test_exes(exes):
 
 
 def make_containerized_cmd(args, command, indir=None, outdir=None):
+    """
+    note that memory must be provided in gigabytes
+    """
     if indir is None:
         indir = os.getcwd()
     if outdir is None:
         outdir = os.getcwd()
     if args.virtualization == "docker":
         cmd = str(
-            "docker run --rm -v " +
-            "{indir}:/input -v {outdir}:/output {command}").format(**locals())
+            "docker run --rm " +
+            "--memory={args.memory}g " +
+            "--cpus={args.cores} " +
+            "-v {indir}:/input -v {outdir}:/output {command}"
+        ).format(**locals())
     else:
         cmd = str(
             "singularity exec --rm -B " +
@@ -136,7 +147,12 @@ def parse_mlplasmids_results(mlplasmids_results):
         if line[5] == '"Plasmid"':
             subresults = []
             for i in [0, 1, 6, 2, 7]:
-                subresults.append(line[i])
+                # if i == 2:
+                #     subresults.append(line[i])
+                # else:
+                # mlplasmids quotes contig name
+                #  I should really talk to whoever wrote that run script.
+                subresults.append(line[i].replace('"', ""))
             templated.append(subresults)
     return templated
 
@@ -303,7 +319,7 @@ def main(args=None):
             command=str(
                 "{image} {exe} " +
                 "/input/{infilefasta} /output/{outdir}  " +
-                ".8 'Escherichia coli 2> {log}").format(
+                ".8 'Escherichia coli' 2> {log}").format(
                     image=images_dict['mlplasmids']['image'],
                     exe=images_dict['mlplasmids']['exe'],
                     infilefasta=os.path.relpath(prokka_fna),
@@ -370,7 +386,7 @@ def main(args=None):
     ###########################################################################
     # program type sequence start end
     all_results = []
-    if any([x=="phages" for x in args.elements]):
+    if any([x=="prophages" for x in args.elements]):
         prophet_parsed_result = parse_prophet_results(prophet_results)
         all_results.extend(prophet_parsed_result)
     if any([x=="plasmids" for x in args.elements]):
@@ -382,6 +398,7 @@ def main(args=None):
 
     print(all_results)
     output_path = os.path.join(output_root, "mobile_genome.fasta")
+    output_regions = os.path.join(output_root, "mobile_genome_coords")
     output_key_path = os.path.join(output_root, "names_key")
     write_sequence_regions_of_interest(
         contigs=prokka_fna,
@@ -389,6 +406,9 @@ def main(args=None):
         all_results=all_results)
     write_out_names_key(inA=args.contigs, inB=prokka_fna,
                         outfile=output_key_path)
+    with open(output_regions, "w") as outf:
+        for line in all_results:
+            outf.write("\t".join(line) + "\n")
 
 
 
