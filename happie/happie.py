@@ -222,7 +222,7 @@ def write_sequence_regions_of_interest(contigs, output_path,  all_results):
                         ),
                         outf, "fasta"
                     )
-                    these_features.append(
+                    these_features.append([start, stop]
                         this_length += (stop-start)
     print("wrote out %i bases" % total_length)
     return total_length
