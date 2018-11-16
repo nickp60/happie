@@ -198,11 +198,12 @@ def annotate_overlaps():
 def write_sequence_regions_of_interest(contigs, output_path,  all_results):
     """write out all regions of interest to a single fasta file
     """
-    start_stop_dict = [] # orig
+    start_stop_dict = {} # orig
     total_length = 0
     with open(contigs, "r") as inf, open(output_path, "w") as outf:
         for rec in SeqIO.parse(inf, "fasta"):
-            start_stop_dict[rec.id] = [len(rec.seq)]
+            start_stop_dict[rec.id] = {"length": len(rec.seq),
+                                       "data": []}
             this_length = 0
             for program, type, recid, start, stop in all_results:
                 these_features = []
@@ -222,10 +223,12 @@ def write_sequence_regions_of_interest(contigs, output_path,  all_results):
                         ),
                         outf, "fasta"
                     )
-                    these_features.append([start, stop]
-                        this_length += (stop-start)
+                    these_features.extend([this_length, this_length+(stop-start), program, type, recid, start, stop])
+                    this_length += (stop - start)
+                    start_stop_dict[rec.id]['data'].append(these_features)
+
     print("wrote out %i bases" % total_length)
-    return total_length
+    return(total_length, start_stop_dict)
 
 
 def write_out_names_key(inA, inB, outfile):
@@ -249,7 +252,7 @@ def write_out_names_key(inA, inB, outfile):
                 a[0], a[1], b[0], b[1]))
 
 
-def run_annotation(args, images_dict):
+def run_annotation(args, prokka_dir, images_dict):
     if not args.skip_rename:
         dest_fasta = os.path.join(args.output, "new_fasta.fasta")
         with open(args.contigs, "r") as inf, open(dest_fasta, "w") as outf:
@@ -412,12 +415,13 @@ def run_abricate(args, abricate_dir, mobile_fasta, images_dict):
     for cmd in cmds:
         print(cmd)
         subprocess.run([cmd],
-                   shell=sys.platform != "win32",
-                   stdout=subprocess.PIPE,
-                   stderr=subprocess.PIPE,
-                   check=True)
+                       shell=sys.platform != "win32",
+                       stdout=subprocess.PIPE,
+                       stderr=subprocess.PIPE,
+                       check=True)
 
-def make_cgview_tab_file(args, seqlen, prokka_fna, reference_fasta,  results_list):
+
+def make_cgview_tab_file(args, seqlen, start_stop_dict_reference, start_stop_dict, results_list):
     """
     http://wishart.biology.ualberta.ca/cgview/tab_input.html
     """
@@ -428,44 +432,58 @@ def make_cgview_tab_file(args, seqlen, prokka_fna, reference_fasta,  results_lis
         "!strand\tslot\tstart\tstop\ttype\tlabel\tmouseover\thyperlink"
     ]
     entries = []
-    start_stop_dict = {} # seq=[orig_len, new_start, new_end]
-    with open(reference_fasta, "r") as inf:
-        global_start, global_end = 0, 0
-        for rec in SeqIO.parse(inf, "fasta"):
-            start_stop_dict[rec.id] = [len(rec.seq)]
-
-    with open(reference_fasta, "r") as inf:
-        global_start, global_end = 0, 0
-        for rec in SeqIO.parse(inf, "fasta"):
-            global_start = global_end + 1
-            global_end = global_start + len(rec.seq)
-            name = rec.id.split("|")[1].split("-")[0]
+    i = 0
+    seq_start, seq_end = 0, 0
+    for seqid, v in start_stop_dict_reference.items():
+        data = v['data']
+        i = i + 1
+        seq_end = seq_end + sum([x[1]-x[0] for x in v['data']])
+        entries.append(
+            "\t".join(
+                ["forward", str(i), str(seq_start + 1), str(seq_end), "open_reading_frame",
+                 seqid, seqid, "github.com/nickp60/happie"]))
+        seq_start = seq_start + (seq_end - seq_start)
+    i = 0
+    for seqid, v in start_stop_dict.items():
+        data = v['data']
+        i = i + 1
+        seq_end = seq_end + sum([x[1]-x[0] for x in v['data']])
+        seq_start = seq_start + (seq_end - seq_start)
+        for rel_start, rel_end, program, typ, recid, start, stop in data:
             entries.append(
                 "\t".join(
-                    ["forward", "1", str(global_start), str(global_end), "open_reading_frame",
-                     name, rec.id, "github.com/nickp60/happie"]))
-            try:
-                start_stop_dict[name][2] += len(rec.seq)
-            except KeyError:
-                    print("error matching names!")
-                    sys.exit()
-            except IndexError:
-                    start_stop_dict[name].extend([global_start, global_end])
-            except Exception as e:
-                    raise(e)
+                    ["forward", str(i), str(rel_start+1), str(rel_end+1), "open_reading_frame",
+                     typ, program, "github.com/nickp60/happie"]))
 
-    for i, l in enumerate(results_list):
-        seqN = i + 1
-        for program, region, seq, start, end in l:
-            this_start = start_stop_dict[seq][1] + int(start)
-            this_end = start_stop_dict[seq][0] + int(start) + int(end)
-            entries.append(
-                "\t".join(
-                    ["forward", str(seqN + 1),
-                     str(this_start),
-                     str(this_end),
-                     "predicted_gene",
-                     program, region, "github.com/nickp60/happie"]))
+
+    # with open(reference_fasta, "r") as inf:
+    #     global_start, global_end = 0, 0
+    #     for rec in SeqIO.parse(inf, "fasta"):
+    #         global_start = global_end + 1
+    #         global_end = global_start + len(rec.seq)
+    #         name = rec.id.split("|")[1].split("-")[0]
+    #         try:
+    #             start_stop_dict[name][2] += len(rec.seq)
+    #         except KeyError:
+    #                 print("error matching names!")
+    #                 sys.exit()
+    #         except IndexError:
+    #                 start_stop_dict[name].extend([global_start, global_end])
+    #         except Exception as e:
+    #                 raise(e)
+
+    # for i, l in enumerate(results_list):
+    #     seqN = i + 1
+    #     for program, region, seq, start, end in l:
+    #         this_start = start_stop_dict[seq][1] + int(start)
+    #         this_end = start_stop_dict[seq][0] + int(start) + int(end)
+    #         entries.append(
+    #             "\t".join(
+    #                 ["forward", str(seqN + 1),
+    #                  str(this_start),
+    #                  str(this_end),
+    #                  "predicted_gene",
+    #                  program, region, "github.com/nickp60/happie"]))
     results.extend(header)
     results.extend(entries)
     return results
@@ -508,7 +526,7 @@ def main(args=None):
     # if args.cores is None:
     #     args.cores = multiprocessing.cpu_count()
     if args.restart_stage < 2:
-        run_annotation(args, images_dict),
+        run_annotation(args, prokka_dir, images_dict),
     else:
         prokka_dir = os.path.abspath(os.path.expanduser(prokka_dir))
         example_prokka_for_name_parsing = \
@@ -563,14 +581,15 @@ def main(args=None):
     mobile_genome_path = os.path.join(args.output, "total_mobile_genome.fasta")
     output_regions = os.path.join(args.output, "mobile_genome_coords")
     output_key_path = os.path.join(args.output, "names_key")
-    redundant_length = write_sequence_regions_of_interest(
+    redundant_length, start_stop_dict = write_sequence_regions_of_interest(
         contigs=prokka_fna,
         output_path=mobile_genome_path,
         all_results=all_results)
-    non_redundant_length = write_sequence_regions_of_interest(
+    non_redundant_length, start_stop_dict_reference= write_sequence_regions_of_interest(
         contigs=prokka_fna,
         output_path=reference_mobile_genome_path,
         all_results=non_overlapping_results)
+    print(start_stop_dict_reference)
     write_out_names_key(inA=args.contigs, inB=prokka_fna,
                         outfile=output_key_path)
     with open(output_regions, "w") as outf:
@@ -578,8 +597,8 @@ def main(args=None):
             outf.write("\t".join(line) + "\n")
 
     tab_data = make_cgview_tab_file(args, results_list=results_list,
-                                    prokka_fna=prokka.fna,
-                                    reference_fasta=reference_mobile_genome_path,
+                                    start_stop_dict_reference=start_stop_dict_reference,
+                                    start_stop_dict=start_stop_dict,
                                     seqlen=non_redundant_length)
     with open("tmp.tab", "w") as outf:
         for line in tab_data:
