@@ -489,6 +489,28 @@ def make_cgview_tab_file(args, seqlen, start_stop_dict_reference, start_stop_dic
     return results
 
 
+def run_cgview(args, cgview_tab, cgview_dir, images_dict):
+    if os.path.exists(cgview_dir):
+        os.remove(cgview_dir)
+    os.makedirs(cgview_dir)
+    cgview_cmd = make_containerized_cmd(
+        args=args,
+        command=str(
+            "{image} {exe} " +
+            "-i /input/{infilefasta} -f svg -o /output/{outdir}").format(
+                image=images_dict['cgview']['image'],
+                exe=images_dict['cgview']['exe'],
+                infilefasta=os.path.relpath(cgview_tab),
+                outdir=os.path.join(os.path.relpath(cgview_dir), "cgview.svg"),
+                log=os.path.join(args.output, "cgview_log.txt"))
+    )
+    print(cgview_cmd)
+    subprocess.run([cgview_cmd],
+                   shell=sys.platform != "win32",
+                   stdout=subprocess.PIPE,
+                   stderr=subprocess.PIPE,
+                   check=True)
+
 def main(args=None):
     if args is None:
         args = get_args()
@@ -513,6 +535,7 @@ def main(args=None):
     mlplasmids_dir = os.path.join(args.output, "mlplasmids", "")
     mlplasmids_results = os.path.join(args.output, "mlplasmids", "results.txt")
     abricate_dir = os.path.join(args.output, "abricate", "")
+    cgview_dir = os.path.join(args.output, "cgview", "")
     cafe_results = os.path.join(args.output, "cafe", "results.txt")
     test_exes(exes=[args.virtualization])
     # make sub directories.  We don't care if they already exist;
@@ -600,12 +623,14 @@ def main(args=None):
                                     start_stop_dict_reference=start_stop_dict_reference,
                                     start_stop_dict=start_stop_dict,
                                     seqlen=non_redundant_length)
-    with open("tmp.tab", "w") as outf:
+    cgview_data = os.path.join(args.output, "cgview.tab")
+    with open(cgview_data, "w") as outf:
         for line in tab_data:
             outf.write(line + "\n")
     #########################################
-    # run_abricate(args, abricate_dir, mobile_fasta=reference_mobile_genome_path,
-    #              images_dict=images_dict)
+    run_abricate(args, abricate_dir, mobile_fasta=reference_mobile_genome_path,
+                 images_dict=images_dict)
+    run_cgview(args, cgview_tab=cgview_data, cgview_dir=cgview_dir, images_dict=images_dict)
 
 if __name__ == "__main__":
     args = get_args()

@@ -29,4 +29,4 @@ programs:
     version: "v0.0.20100111-2-deb_cv1"
     maintainer: biocontainers
     name: cgview
-    exe: "java -jar cgview.jar"
+    exe: "java -jar /bin/cgview"
