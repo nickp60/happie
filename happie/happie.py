@@ -51,9 +51,16 @@ def get_args():  # pragma: no cover
                           help="skip initial contig renaming.")
     optional.add_argument("--elements", dest='elements',
                           action="store", nargs="*",
-                          default=["plasmids", "islands", "prophages"],
-                          choices=["plasmids", "islands", "prophages"],
-                          help="skip initial contig renaming.")
+                          default=["plasmids", "islands", "prophages", "is"],
+                          choices=["plasmids", "islands", "prophages", "is"],
+                          help="which regions to look for.")
+    optional.add_argument("--analyses", dest='analyses',
+                          action="store", nargs="*",
+                          default=["resfinder", "vfdb"],
+                          choices=["ncbi", "card", "resfinder",
+                                   "argannot",  "vfdb", "ecoli_vf"],
+                          help="which analyses to perform on the " +
+                          "extracted mobile genome.")
     optional.add_argument("-s", "--restart_stage", dest='restart_stage',
                           choices=[1, 2, 3, 4, 5, 6, 7],
                           help="stage, if restarting:" +
@@ -62,8 +69,7 @@ def get_args():  # pragma: no cover
                           "3 - run plasmid finders | " +
                           "4 - run genomic island finders | " +
                           "5 - run insertion sequences finder" +
-                          "6 - run AMR finder" +
-                          "7 - analyze the results",
+                          "6 - analyze the results",
                           type=int,
                           default=1)
     optional.add_argument("-h", "--help",
@@ -143,7 +149,7 @@ def parse_mlplasmids_results(mlplasmids_results):
         for line in inf:
             # here we add 1 as a start index, and we will use the
             #  contig length as the end.  Its not great, but its what we have
-            results = ["mlplasmids", "plasmid", "0"]
+            results = ["mlplasmids", "plasmid", "1"]
             results.extend(line.strip().split("\t"))
             mlplasmids_results_text.append(results)
     for line in mlplasmids_results_text:
@@ -159,18 +165,51 @@ def parse_mlplasmids_results(mlplasmids_results):
             templated.append(subresults)
     return templated
 
+def condensce_regions(all_results):
+    merged_labeled = []
+    for seq in set([x[2] for x in all_results]):
+        intervals = [(int(x[3]), int(x[4])) for x in all_results if x[2] == seq]
+        sorted_by_lower_bound = sorted(intervals, key=lambda tup: tup[0])
+        for i in intervals:
+            print(i)
+        merged = []
+        for higher in sorted_by_lower_bound:
+            if not merged:
+                merged.append(higher)
+            else:
+                lower = merged[-1]
+                # test for intersection between lower and higher:
+                # we know via sorting that lower[0] <= higher[0]
+                if higher[0] <= lower[1]:
+                    upper_bound = max(lower[1], higher[1])
+                    merged[-1] = (lower[0], upper_bound)  # replace by merged interval
+                else:
+                    merged.append(higher)
+        for i in merged:
+            merged_labeled.append(["combined", "combined", seq, i[0], i[1]])
+    return merged_labeled
+
+
+def annotate_overlaps():
+    for prog, feat, seq, start, end in all_results:
+        pass
+
 
 def write_sequence_regions_of_interest(contigs, output_path,  all_results):
     """write out all regions of interest to a single fasta file
     """
+    start_stop_dict = [] # orig
     total_length = 0
     with open(contigs, "r") as inf, open(output_path, "w") as outf:
         for rec in SeqIO.parse(inf, "fasta"):
+            start_stop_dict[rec.id] = [len(rec.seq)]
+            this_length = 0
             for program, type, recid, start, stop in all_results:
+                these_features = []
                 if rec.id == recid:
                     start, stop = int(start), int(stop)
                     header = \
-                        "lcl|{program}|{type}|{recid}:{start}-{stop}".format(
+                        "lcl|{recid}-{start}-{stop}|{program}-{type}".format(
                             **locals())
                     total_length = total_length + (stop - start)
                     SeqIO.write(
@@ -183,7 +222,10 @@ def write_sequence_regions_of_interest(contigs, output_path,  all_results):
                         ),
                         outf, "fasta"
                     )
+                    these_features.append(
+                        this_length += (stop-start)
     print("wrote out %i bases" % total_length)
+    return total_length
 
 
 def write_out_names_key(inA, inB, outfile):
@@ -341,6 +383,94 @@ def run_dimob(args, prokka, island_results, images_dict):
             for line in inf:
                 outf.write(k + "\t" + line)
 
+
+def run_abricate(args, abricate_dir, mobile_fasta, images_dict):
+    # remove old results
+    if os.path.exists(abricate_dir):
+        shutil.rmtree(abricate_dir)
+    os.makedirs(abricate_dir)
+    choices=["ncbi", "card", "resfinder",
+             "argannot",  "vfdb", "ecoli_vf"],
+    cmds = []
+    for db in args.analyses:
+        if db not in choices:
+            next
+        # write to output stdout
+        this_cmd = make_containerized_cmd(
+            args=args,
+            command=str(
+                "{image} {exe} " +
+                "--db {db}  /input/{infilefasta} > {outdir}/{db}.tab  2> {log}_{db}_log.txt").format(
+                    image=images_dict['abricate']['image'],
+                    db=db,
+                    exe=images_dict['abricate']['exe'],
+                    infilefasta=os.path.relpath(mobile_fasta),
+                    outdir=abricate_dir,
+                    log=os.path.join(args.output, "abricate"))
+        )
+        cmds.append(this_cmd)
+    for cmd in cmds:
+        print(cmd)
+        subprocess.run([cmd],
+                   shell=sys.platform != "win32",
+                   stdout=subprocess.PIPE,
+                   stderr=subprocess.PIPE,
+                   check=True)
+
+def make_cgview_tab_file(args, seqlen, prokka_fna, reference_fasta,  results_list):
+    """
+    http://wishart.biology.ualberta.ca/cgview/tab_input.html
+    """
+    results = []
+    header=[
+        "#{}".format(args.name),
+        "%{}".format(seqlen),
+        "!strand\tslot\tstart\tstop\ttype\tlabel\tmouseover\thyperlink"
+    ]
+    entries = []
+    start_stop_dict = {} # seq=[orig_len, new_start, new_end]
+    with open(reference_fasta, "r") as inf:
+        global_start, global_end = 0, 0
+        for rec in SeqIO.parse(inf, "fasta"):
+            start_stop_dict[rec.id] = [len(rec.seq)]
+
+    with open(reference_fasta, "r") as inf:
+        global_start, global_end = 0, 0
+        for rec in SeqIO.parse(inf, "fasta"):
+            global_start = global_end + 1
+            global_end = global_start + len(rec.seq)
+            name = rec.id.split("|")[1].split("-")[0]
+            entries.append(
+                "\t".join(
+                    ["forward", "1", str(global_start), str(global_end), "open_reading_frame",
+                     name, rec.id, "github.com/nickp60/happie"]))
+            try:
+                start_stop_dict[name][2] += len(rec.seq)
+            except KeyError:
+                    print("error matching names!")
+                    sys.exit()
+            except IndexError:
+                    start_stop_dict[name].extend([global_start, global_end])
+            except Exception as e:
+                    raise(e)
+
+    for i, l in enumerate(results_list):
+        seqN = i + 1
+        for program, region, seq, start, end in l:
+            this_start = start_stop_dict[seq][1] + int(start)
+            this_end = start_stop_dict[seq][0] + int(start) + int(end)
+            entries.append(
+                "\t".join(
+                    ["forward", str(seqN + 1),
+                     str(this_start),
+                     str(this_end),
+                     "predicted_gene",
+                     program, region, "github.com/nickp60/happie"]))
+    results.extend(header)
+    results.extend(entries)
+    return results
+
+
 def main(args=None):
     if args is None:
         args = get_args()
@@ -364,12 +494,13 @@ def main(args=None):
     island_results = os.path.join(args.output, "dimob", "dimob_results")
     mlplasmids_dir = os.path.join(args.output, "mlplasmids", "")
     mlplasmids_results = os.path.join(args.output, "mlplasmids", "results.txt")
-    cafe_dir = os.path.join(args.output, "cafe", "")
+    abricate_dir = os.path.join(args.output, "abricate", "")
     cafe_results = os.path.join(args.output, "cafe", "results.txt")
     test_exes(exes=[args.virtualization])
     # make sub directories.  We don't care if they already exist;
     #  cause we clobber them later if they will cause problems for reexecution
-    for path in [prophet_dir, mobsuite_dir, mlplasmids_dir, island_dir]:
+    for path in [prophet_dir, mobsuite_dir, mlplasmids_dir, island_dir,
+                 abricate_dir]:
         os.makedirs(path, exist_ok=True)
 
     # This causes problems on HPCs when I forget to set cores:(
@@ -404,36 +535,58 @@ def main(args=None):
         run_mlplasmids(args, prokka, mlplasmids_results, images_dict)
     if args.restart_stage < 5 and any([x=="islands" for x in args.elements]):
         run_dimob(args, prokka, island_results, images_dict)
+    if args.restart_stage < 6 and any([x=="is" for x in args.elements]):
+        pass
+        #run_dimob(args, prokka, island_results, images_dict)
 
 
     ###########################################################################
     # program type sequence start end
     all_results = []
+    results_list = []
     if any([x=="prophages" for x in args.elements]):
         prophet_parsed_result = parse_prophet_results(prophet_results)
         all_results.extend(prophet_parsed_result)
+        results_list.append(prophet_parsed_result)
     if any([x=="plasmids" for x in args.elements]):
         mlplasmids_parsed_result = parse_mlplasmids_results(mlplasmids_results)
         all_results.extend(mlplasmids_parsed_result)
+        results_list.append(mlplasmids_parsed_result)
     if any([x=="islands" for x in args.elements]):
         dimob_parsed_result = parse_dimob_results(island_results)
         all_results.extend(dimob_parsed_result)
+        results_list.append(dimob_parsed_result)
 
     print(all_results)
-    output_path = os.path.join(args.output, "mobile_genome.fasta")
+    non_overlapping_results = condensce_regions(all_results)
+    reference_mobile_genome_path = os.path.join(args.output, "reference_mobile_genome.fasta")
+    mobile_genome_path = os.path.join(args.output, "total_mobile_genome.fasta")
     output_regions = os.path.join(args.output, "mobile_genome_coords")
     output_key_path = os.path.join(args.output, "names_key")
-    write_sequence_regions_of_interest(
+    redundant_length = write_sequence_regions_of_interest(
         contigs=prokka_fna,
-        output_path=output_path,
+        output_path=mobile_genome_path,
         all_results=all_results)
+    non_redundant_length = write_sequence_regions_of_interest(
+        contigs=prokka_fna,
+        output_path=reference_mobile_genome_path,
+        all_results=non_overlapping_results)
     write_out_names_key(inA=args.contigs, inB=prokka_fna,
                         outfile=output_key_path)
     with open(output_regions, "w") as outf:
         for line in all_results:
             outf.write("\t".join(line) + "\n")
 
-
+    tab_data = make_cgview_tab_file(args, results_list=results_list,
+                                    prokka_fna=prokka.fna,
+                                    reference_fasta=reference_mobile_genome_path,
+                                    seqlen=non_redundant_length)
+    with open("tmp.tab", "w") as outf:
+        for line in tab_data:
+            outf.write(line + "\n")
+    #########################################
+    # run_abricate(args, abricate_dir, mobile_fasta=reference_mobile_genome_path,
+    #              images_dict=images_dict)
 
 if __name__ == "__main__":
     args = get_args()

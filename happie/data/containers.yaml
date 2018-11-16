@@ -4,7 +4,7 @@ programs:
     version: 1.12
     maintainer: ummidock
     name: prokka
-    exe: prokka
+    exe: "prokka"
   prophet:
     version: latest
     maintainer: nickp60
@@ -20,3 +20,13 @@ programs:
     maintainer: brinkmanlab
     name: islandpath
     exe: null
+  abricate:
+    version: latest
+    maintainer: nickp60
+    name: abricate
+    exe: "./bin/abricate"
+  cgview:
+    version: "v0.0.20100111-2-deb_cv1"
+    maintainer: biocontainers
+    name: cgview
+    exe: "java -jar cgview.jar"

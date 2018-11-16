@@ -68,7 +68,7 @@ def install_image(args, image_name):
 def install_programs(args, config):
     images_dict = sm.parse_docker_images(config)
     for k, v in images_dict.items():
-        print("installing %s", k)
+        print("installing %s" % k)
         install_image(args, v['image'])
 
 
