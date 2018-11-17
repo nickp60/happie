@@ -52,6 +52,7 @@ def test_exe_exists(args):
                    stderr=subprocess.PIPE,
                    check=True)
 
+    
 def install_image(args, image_name):
     if args.virtualization == "docker":
         cmd = "docker pull {image_name}".format(**locals())
@@ -62,7 +63,8 @@ def install_image(args, image_name):
                    shell=sys.platform != "win32",
                    stdout=subprocess.PIPE,
                    stderr=subprocess.PIPE,
-                   check=True)
+                   # docker propperly pulls; singularity erros if image exists 
+                   check=args.virtualization=="docker")
 
 
 def install_programs(args, config):
