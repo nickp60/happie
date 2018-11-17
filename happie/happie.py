@@ -16,6 +16,8 @@ from argparse import Namespace
 from Bio.Seq import Seq
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
+from Bio.Alphabet import IUPAC
+from Bio.SeqFeature import SeqFeature, FeatureLocation
 
 from . import __version__
 from . import shared_methods as sm
@@ -115,13 +117,16 @@ def parse_prophet_results(results):
     templated = []
     with open(results) as inf:
         for line in inf:
-            results = ["prophet", "prophage"]
+            results = ["prophet", "prophages"]
             results.extend(line.strip().split("\t"))
             results_text.append(results)
     for line in results_text:
         subresults = []
         for i in [0, 1, 2, 4, 5]:
-            subresults.append(line[i])
+            if i in [4,5]:
+                subresults.append(int(line[i]))
+            else:
+                subresults.append(line[i])
         templated.append(subresults)
     return templated
 
@@ -131,13 +136,16 @@ def parse_dimob_results(results):
     templated = []
     with open(results) as inf:
         for line in inf:
-            results = ["dimob", "island"]
+            results = ["dimob", "islands"]
             results.extend(line.strip().split("\t"))
             results_text.append(results)
     for line in results_text:
         subresults = []
         for i in [0, 1, 2, 4, 5]:
-            subresults.append(line[i])
+            if i in [4,5]:
+                subresults.append(int(line[i]))
+            else:
+                subresults.append(line[i])
         templated.append(subresults)
     return templated
 
@@ -149,11 +157,13 @@ def parse_mlplasmids_results(mlplasmids_results):
         for line in inf:
             # here we add 1 as a start index, and we will use the
             #  contig length as the end.  Its not great, but its what we have
-            results = ["mlplasmids", "plasmid", "1"]
+            results = ["mlplasmids", "plasmids", "1"]
             results.extend(line.strip().split("\t"))
             mlplasmids_results_text.append(results)
     for line in mlplasmids_results_text:
-        if line[5] == '"Plasmid"':
+        line = [x.replace('"', '') for x in line]
+        print(line)
+        if line[5] == 'Plasmid':
             subresults = []
             for i in [0, 1, 6, 2, 7]:
                 # if i == 2:
@@ -161,8 +171,13 @@ def parse_mlplasmids_results(mlplasmids_results):
                 # else:
                 # mlplasmids quotes contig name
                 #  I should really talk to whoever wrote that run script.
-                subresults.append(line[i].replace('"', ""))
+                if i in [2,7]:
+                    subresults.append(int(line[i]))
+                else:
+                    subresults.append(line[i])
+                # subresults.append(line[i].replace('"', ""))
             templated.append(subresults)
+            print(subresults)
     return templated
 
 def condensce_regions(all_results):
@@ -170,8 +185,8 @@ def condensce_regions(all_results):
     for seq in set([x[2] for x in all_results]):
         intervals = [(int(x[3]), int(x[4])) for x in all_results if x[2] == seq]
         sorted_by_lower_bound = sorted(intervals, key=lambda tup: tup[0])
-        for i in intervals:
-            print(i)
+        # for i in intervals:
+        #     print(i)
         merged = []
         for higher in sorted_by_lower_bound:
             if not merged:
@@ -195,40 +210,79 @@ def annotate_overlaps():
         pass
 
 
-def write_sequence_regions_of_interest(contigs, output_path,  all_results):
+def write_annotate_mobile_genome(contigs, output_path,  all_results, non_overlapping_results):
     """write out all regions of interest to a single fasta file
     """
-    start_stop_dict = {} # orig
+    start_stop_dict = {} # {seq: {length, global_start, mobile_start, }}
     total_length = 0
     with open(contigs, "r") as inf, open(output_path, "w") as outf:
         for rec in SeqIO.parse(inf, "fasta"):
-            start_stop_dict[rec.id] = {"length": len(rec.seq),
-                                       "data": []}
-            this_length = 0
-            for program, type, recid, start, stop in all_results:
-                these_features = []
-                if rec.id == recid:
-                    start, stop = int(start), int(stop)
-                    header = \
-                        "lcl|{recid}-{start}-{stop}|{program}-{type}".format(
-                            **locals())
-                    total_length = total_length + (stop - start)
-                    SeqIO.write(
-                        SeqRecord(
-                            # account for 1 index in ext tools
-                            rec.seq[start - 1: stop - 1],
-                            id=header,
-                            description="",
-                            name=""
-                        ),
-                        outf, "fasta"
+            regions_subset = [(x[3], x[4]) for x in non_overlapping_results if x[2] == rec.id]
+            if not regions_subset:
+                continue
+            seq = ""
+            for region_start, region_end in regions_subset:
+                seq = seq + str(rec.seq[region_start - 1: region_end - 1])
+            seqrec = SeqRecord(
+                Seq(str(seq), IUPAC.unambiguous_dna),
+                id=rec.id,  # should we differentiate?
+                name='happie_elements',
+                annotations={
+                    "version": "0.1",
+                    "source": "test"
+                },
+                description='mobile elements from assembly')
+            total_length += len(seqrec.seq)
+            previous_end = 0
+            for program, typ, recid, start, stop in all_results:
+                if (rec.id == recid):
+                    this_len = stop - start
+                    feature = SeqFeature(
+                        FeatureLocation(
+                            # start=4, end=199),
+                            start=previous_end + 1,
+                            end=previous_end + 1 + this_len),
+                        type='misc_feature',
+                        qualifiers={"program": program,
+                                    "product": typ}
                     )
-                    these_features.extend([this_length, this_length+(stop-start), program, type, recid, start, stop])
-                    this_length += (stop - start)
-                    start_stop_dict[rec.id]['data'].append(these_features)
-
+                    start_stop_dict[rec.id]
+                    previous_end += this_len
+                    seqrec.features.append(feature)
+            SeqIO.write(seqrec, outf, "genbank")
     print("wrote out %i bases" % total_length)
+    print(start_stop_dict)
     return(total_length, start_stop_dict)
+
+
+
+
+            # start_stop_dict[rec.id] = {"length": len(rec.seq),
+            #                            "data": [],
+            #                            "relstart": total_length}
+            # this_length = 0
+            # for program, type, recid, start, stop in all_results:
+            #     these_features = []
+            #     if rec.id == recid:
+            #         start, stop = int(start), int(stop)
+            #         header = \
+            #             "lcl|{recid}-{start}-{stop}|{program}-{type}".format(
+            #                 **locals())
+            #         SeqIO.write(
+            #             SeqRecord(
+            #                 # account for 1 index in ext tools
+            #                 rec.seq[start - 1: stop - 1],
+            #                 id=header,
+            #                 description="",
+            #                 name=""
+            #             ),
+            #             outf, "fasta"
+            #         )
+            #         these_features.extend([total_length, total_length+(stop-start), program, type, recid, start, stop])
+            #         total_length += (stop - start)
+            #         start_stop_dict[rec.id]['data'].append(these_features)
+            # # total_length = total_length + this_length
+            # # start_stop_dict[rec.id]['rel_start'] = this_length
 
 
 def write_out_names_key(inA, inB, outfile):
@@ -314,6 +368,7 @@ def run_prophet(args, prokka, prophet_dir, images_dict):
                    stderr=subprocess.PIPE,
                    check=True)
 
+
 def run_mlplasmids(args, prokka, mlplasmids_results, images_dict):
     if os.path.exists(mlplasmids_results):
         os.remove(mlplasmids_results)
@@ -335,6 +390,7 @@ def run_mlplasmids(args, prokka, mlplasmids_results, images_dict):
                    stdout=subprocess.PIPE,
                    stderr=subprocess.PIPE,
                    check=True)
+
 
 def run_dimob(args, prokka, island_results, images_dict):
     island_dir = os.path.dirname(island_results)
@@ -397,13 +453,14 @@ def run_abricate(args, abricate_dir, mobile_fasta, images_dict):
     cmds = []
     for db in args.analyses:
         if db not in choices:
-            next
+            continue
         # write to output stdout
         this_cmd = make_containerized_cmd(
             args=args,
             command=str(
                 "{image} {exe} " +
-                "--db {db}  /input/{infilefasta} > {outdir}/{db}.tab  2> {log}_{db}_log.txt").format(
+                "--db {db}  /input/{infilefasta} > {outdir}/{db}.tab  " +
+                "2> {log}_{db}_log.txt").format(
                     image=images_dict['abricate']['image'],
                     db=db,
                     exe=images_dict['abricate']['exe'],
@@ -421,7 +478,8 @@ def run_abricate(args, abricate_dir, mobile_fasta, images_dict):
                        check=True)
 
 
-def make_cgview_tab_file(args, seqlen, start_stop_dict_reference, start_stop_dict, results_list):
+def make_cgview_tab_file(args, seqlen, start_stop_dict_reference,
+                         start_stop_dict, results_list):
     """
     http://wishart.biology.ualberta.ca/cgview/tab_input.html
     """
@@ -432,58 +490,40 @@ def make_cgview_tab_file(args, seqlen, start_stop_dict_reference, start_stop_dic
         "!strand\tslot\tstart\tstop\ttype\tlabel\tmouseover\thyperlink"
     ]
     entries = []
-    i = 0
     seq_start, seq_end = 0, 0
+    # the reference
     for seqid, v in start_stop_dict_reference.items():
         data = v['data']
-        i = i + 1
         seq_end = seq_end + sum([x[1]-x[0] for x in v['data']])
         entries.append(
             "\t".join(
-                ["forward", str(i), str(seq_start + 1), str(seq_end), "open_reading_frame",
+                ["forward", str(1), str(seq_start + 1), str(seq_end), "open_reading_frame",
                  seqid, seqid, "github.com/nickp60/happie"]))
         seq_start = seq_start + (seq_end - seq_start)
-    i = 0
-    for seqid, v in start_stop_dict.items():
-        data = v['data']
-        i = i + 1
-        seq_end = seq_end + sum([x[1]-x[0] for x in v['data']])
-        seq_start = seq_start + (seq_end - seq_start)
-        for rel_start, rel_end, program, typ, recid, start, stop in data:
-            entries.append(
-                "\t".join(
-                    ["forward", str(i), str(rel_start+1), str(rel_end+1), "open_reading_frame",
-                     typ, program, "github.com/nickp60/happie"]))
 
-
-    # with open(reference_fasta, "r") as inf:
-    #     global_start, global_end = 0, 0
-    #     for rec in SeqIO.parse(inf, "fasta"):
-    #         global_start = global_end + 1
-    #         global_end = global_start + len(rec.seq)
-    #         name = rec.id.split("|")[1].split("-")[0]
-    #         try:
-    #             start_stop_dict[name][2] += len(rec.seq)
-    #         except KeyError:
-    #                 print("error matching names!")
-    #                 sys.exit()
-    #         except IndexError:
-    #                 start_stop_dict[name].extend([global_start, global_end])
-    #         except Exception as e:
-    #                 raise(e)
-
-    # for i, l in enumerate(results_list):
-    #     seqN = i + 1
-    #     for program, region, seq, start, end in l:
-    #         this_start = start_stop_dict[seq][1] + int(start)
-    #         this_end = start_stop_dict[seq][0] + int(start) + int(end)
-    #         entries.append(
-    #             "\t".join(
-    #                 ["forward", str(seqN + 1),
-    #                  str(this_start),
-    #                  str(this_end),
-    #                  "predicted_gene",
-    #                  program, region, "github.com/nickp60/happie"]))
+    for i, region in enumerate(args.elements):
+        total_total = 0
+        for seqid, v in start_stop_dict.items():
+            data = v['data']
+            rel_seq_start = v['relstart']
+            # i = i + 1
+            seq_end = seq_end + sum([x[1]-x[0] for x in v['data']])
+            seq_start = seq_start + (seq_end - seq_start)
+            for rel_start, rel_end, program, typ, recid, start, stop in data:
+                if region == typ and recid == seqid:
+                    entries.append(
+                        "\t".join(
+                            ["forward",
+                             str(i+2),
+                             str(rel_start),
+                             str(rel_end ),
+                             "gene",
+                             typ,
+                             program,
+                             "github.com/nickp60/happie"]))
+                    # this works cause the last time through the
+                    # loop we get the last coord
+                    # total_total = total_total + rellen
     results.extend(header)
     results.extend(entries)
     return results
@@ -491,13 +531,13 @@ def make_cgview_tab_file(args, seqlen, start_stop_dict_reference, start_stop_dic
 
 def run_cgview(args, cgview_tab, cgview_dir, images_dict):
     if os.path.exists(cgview_dir):
-        os.remove(cgview_dir)
+        shutil.rmtree(cgview_dir)
     os.makedirs(cgview_dir)
     cgview_cmd = make_containerized_cmd(
         args=args,
         command=str(
             "{image} {exe} " +
-            "-i /input/{infilefasta} -f svg -o /output/{outdir}").format(
+            "-i /input/{infilefasta} -f svg -o /output/{outdir} -I T").format(
                 image=images_dict['cgview']['image'],
                 exe=images_dict['cgview']['exe'],
                 infilefasta=os.path.relpath(cgview_tab),
@@ -536,7 +576,6 @@ def main(args=None):
     mlplasmids_results = os.path.join(args.output, "mlplasmids", "results.txt")
     abricate_dir = os.path.join(args.output, "abricate", "")
     cgview_dir = os.path.join(args.output, "cgview", "")
-    cafe_results = os.path.join(args.output, "cafe", "results.txt")
     test_exes(exes=[args.virtualization])
     # make sub directories.  We don't care if they already exist;
     #  cause we clobber them later if they will cause problems for reexecution
@@ -589,35 +628,42 @@ def main(args=None):
         prophet_parsed_result = parse_prophet_results(prophet_results)
         all_results.extend(prophet_parsed_result)
         results_list.append(prophet_parsed_result)
+    print(all_results)
     if any([x=="plasmids" for x in args.elements]):
         mlplasmids_parsed_result = parse_mlplasmids_results(mlplasmids_results)
         all_results.extend(mlplasmids_parsed_result)
         results_list.append(mlplasmids_parsed_result)
+    print(all_results)
     if any([x=="islands" for x in args.elements]):
         dimob_parsed_result = parse_dimob_results(island_results)
         all_results.extend(dimob_parsed_result)
         results_list.append(dimob_parsed_result)
-
-    print(all_results)
+    sys.exit()
+    # print(all_results)
     non_overlapping_results = condensce_regions(all_results)
     reference_mobile_genome_path = os.path.join(args.output, "reference_mobile_genome.fasta")
     mobile_genome_path = os.path.join(args.output, "total_mobile_genome.fasta")
     output_regions = os.path.join(args.output, "mobile_genome_coords")
-    output_key_path = os.path.join(args.output, "names_key")
-    redundant_length, start_stop_dict = write_sequence_regions_of_interest(
-        contigs=prokka_fna,
-        output_path=mobile_genome_path,
-        all_results=all_results)
-    non_redundant_length, start_stop_dict_reference= write_sequence_regions_of_interest(
-        contigs=prokka_fna,
-        output_path=reference_mobile_genome_path,
-        all_results=non_overlapping_results)
-    print(start_stop_dict_reference)
-    write_out_names_key(inA=args.contigs, inB=prokka_fna,
-                        outfile=output_key_path)
     with open(output_regions, "w") as outf:
         for line in all_results:
-            outf.write("\t".join(line) + "\n")
+            outf.write("\t".join([str(x) for x in line]) + "\n")
+    output_key_path = os.path.join(args.output, "names_key")
+    write_out_names_key(inA=args.contigs, inB=prokka_fna,
+                        outfile=output_key_path)
+    # redundant_length, start_stop_dict = write_sequence_regions_of_interest(
+    #     contigs=prokka_fna,
+    #     output_path=mobile_genome_path,
+    #     all_results=all_results)
+    seq_length, start_stop_dict = write_annotate_mobile_genome(
+        contigs=prokka_fna,
+        output_path=reference_mobile_genome_path,
+        non_overlapping_results=non_overlapping_results,
+        all_results=all_results)
+    print(start_stop_dict)
+    for k, v in start_stop_dict.items():
+        print(k, v["length"])
+        for kk in v['data']:
+            print(kk)
 
     tab_data = make_cgview_tab_file(args, results_list=results_list,
                                     start_stop_dict_reference=start_stop_dict_reference,
@@ -628,8 +674,8 @@ def main(args=None):
         for line in tab_data:
             outf.write(line + "\n")
     #########################################
-    run_abricate(args, abricate_dir, mobile_fasta=reference_mobile_genome_path,
-                 images_dict=images_dict)
+    # run_abricate(args, abricate_dir, mobile_fasta=reference_mobile_genome_path,
+    #              images_dict=images_dict)
     run_cgview(args, cgview_tab=cgview_data, cgview_dir=cgview_dir, images_dict=images_dict)
 
 if __name__ == "__main__":
