@@ -108,8 +108,8 @@ def make_containerized_cmd(args, command, indir=None, outdir=None):
         ).format(**locals())
     else:
         cmd = str(
-            "singularity exec --rm -B " +
-        "{indir}:/input -v {outdir}:/output {command}").format(**locals())
+            "singularity exec -B " +
+        "{indir}:/input -B {outdir}:/output docker://{command}").format(**locals())
     return cmd
 
 def parse_prophet_results(results):
@@ -231,7 +231,8 @@ def write_annotated_mobile_genome(contigs, output_path,  all_results, non_overla
     programs = set([x[0] for x in all_results ])
     # start at ring 2; righ 1 is the base
     program_rings = dict(zip(programs, ([x + 2 for x in range(len(programs))])))
-    with open(contigs, "r") as inf, open(output_path, "w") as outf:
+    with open(contigs, "r") as inf, open(output_path + ".fasta", "w") as outfasta, \
+    open(output_path + ".gbk", "w") as outgbk:
         for rec in SeqIO.parse(inf, "fasta"):
             ring = 1
             entry_start = total_length + 1
@@ -287,7 +288,8 @@ def write_annotated_mobile_genome(contigs, output_path,  all_results, non_overla
                                     "product": typ}
                     )
                     previous_end = previous_end + this_len
-            SeqIO.write(seqrec, outf, "genbank")
+            SeqIO.write(seqrec, outfasta, "fasta")
+            SeqIO.write(seqrec, outgbk, "genbank")
     print("wrote out %i bases" % total_length)
     return(total_length + 1, cgview_entries)
 
@@ -643,8 +645,7 @@ def main(args=None):
         results_list.append(dimob_parsed_result)
     # print(all_results)
     non_overlapping_results = condensce_regions(all_results)
-    reference_mobile_genome_path = os.path.join(args.output, "reference_mobile_genome.fasta")
-    mobile_genome_path = os.path.join(args.output, "total_mobile_genome.fasta")
+    mobile_genome_path_prefix = os.path.join(args.output, "total_mobile_genome")
     output_regions = os.path.join(args.output, "mobile_genome_coords")
     with open(output_regions, "w") as outf:
         for line in all_results:
@@ -652,13 +653,9 @@ def main(args=None):
     output_key_path = os.path.join(args.output, "names_key")
     write_out_names_key(inA=args.contigs, inB=prokka_fna,
                         outfile=output_key_path)
-    # redundant_length, start_stop_dict = write_sequence_regions_of_interest(
-    #     contigs=prokka_fna,
-    #     output_path=mobile_genome_path,
-    #     all_results=all_results)
     seq_length, cgview_entries = write_annotated_mobile_genome(
         contigs=prokka_fna,
-        output_path=reference_mobile_genome_path,
+        output_path=mobile_genome_path_prefix,
         non_overlapping_results=non_overlapping_results,
         all_results=all_results)
 
@@ -669,8 +666,8 @@ def main(args=None):
         for line in tab_data:
             outf.write(line + "\n")
     #########################################
-    # run_abricate(args, abricate_dir, mobile_fasta=reference_mobile_genome_path,
-    #              images_dict=images_dict)
+    run_abricate(args, abricate_dir, mobile_fasta=reference_mobile_genome_path,
+                 images_dict=images_dict)
     run_cgview(args, cgview_tab=cgview_data, cgview_dir=cgview_dir, images_dict=images_dict)
 
 if __name__ == "__main__":
