@@ -19,11 +19,10 @@ from unittest.mock import MagicMock, patch
 
 # I hate this line but it works :(
 sys.path.append(os.path.join(
-    os.path.dirname(os.path.dirname(__file__)), "mp"))
+    os.path.dirname(os.path.dirname(__file__)), "happie"))
 
 
-from mp.happie import parse_prophet_results, parse_mlplasmids_results, \
-    write_sequence_regions_of_interest
+from happie import happie as hh
 sys.dont_write_bytecode = True
 
 logger = logging
@@ -56,20 +55,31 @@ class MpTestCase(unittest.TestCase):
 
     def test_parse_prophet_results(self):
         ref = [
-            ['prophet', 'prophage', 'AFDU01000019.1', '177', '24461'],
-            ['prophet', 'prophage', 'AFDU01000019.1', '808102', '848966'],
-            ['prophet', 'prophage', 'AFDU01000012.1', '216544', '249812'],
-            ['prophet', 'prophage', 'AFDU01000012.1', '352274', '368386'],
-            ['prophet', 'prophage', 'AFDU01000014.1', '159', '8432'],
-            ['prophet', 'prophage', 'AFDU01000015.1', '385', '39315'],
-            ['prophet', 'prophage', 'AFDU01000031.1', '57319', '73419'],
-            ['prophet', 'prophage', 'AFDU01000005.1', '317383', '360232'],
-            ['prophet', 'prophage', 'AFDU01000011.1', '2908', '15720']
+            ['prophet', 'prophage', 'AFDU01000019.1', 177, 24461],
+            ['prophet', 'prophage', 'AFDU01000019.1', 808102, 848966],
+            ['prophet', 'prophage', 'AFDU01000012.1', 216544, 249812],
+            ['prophet', 'prophage', 'AFDU01000012.1', 352274, 368386],
+            ['prophet', 'prophage', 'AFDU01000014.1', 159, 8432],
+            ['prophet', 'prophage', 'AFDU01000015.1', 385, 39315],
+            ['prophet', 'prophage', 'AFDU01000031.1', 57319, 73419],
+            ['prophet', 'prophage', 'AFDU01000005.1', 317383, 360232],
+            ['prophet', 'prophage', 'AFDU01000011.1', 2908, 15720]
         ]
         self.assertEqual(
-            parse_prophet_results(self.ref_prophet),
+            hh.parse_prophet_results(self.ref_prophet),
             ref
         )
+
+    def test_condensce_regions(self):
+        all_results = [
+            ['prophet', 'prophage', 'A', '5', '10'],
+            ['prophet', 'prophage', 'A', '1', '15'],
+            ['prophet', 'prophage', 'B', '55', '66'],
+            ['prophet', 'prophage', 'B', '34', '100'],
+            ['mlplasmids', 'plasmid', '"A"', '0', '1214'],
+        ]
+        non_overlapping_results = hh.condensce_regions(all_results)
+        print(non_overlapping_results)
 
     def test_parse_mlplasmids_results(self):
         ref = [
@@ -77,11 +87,11 @@ class MpTestCase(unittest.TestCase):
         ]
 
         self.assertEqual(
-            parse_mlplasmids_results(self.ref_mlplasmids),
+            hh.parse_mlplasmids_results(self.ref_mlplasmids),
             ref
         )
 
-    def test_write_sequence_regions_of_interest(self):
+    def test_write_annotated_mobile_genome(self):
         outf = os.path.join(self.test_dir, "mobile_genome.fasta")
         all_results = [
             ['prophet', 'prophage', 'AFDU01000019.1', '5', '10'],
@@ -90,9 +100,11 @@ class MpTestCase(unittest.TestCase):
             ['prophet', 'prophage', 'AFDU01000031.1', '34', '100'],
         ]
 
-        write_sequence_regions_of_interest(
-            contigs=self.ref_contigs,
-            output_path=outf, all_results=all_results)
+        seq_length, cgview_entries = hh.write_annotated_mobile_genome(
+            contigs=prokka_fna,
+            output_path=reference_mobile_genome_path,
+            non_overlapping_results=non_overlapping_results,
+            all_results=all_results)
 
     # def test_remove_bad_contig(self):
     #     outfile = os.path.join(self.test_dir, "contigs_minus_NODE_2.fasta")

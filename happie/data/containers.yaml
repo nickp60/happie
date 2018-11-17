@@ -6,7 +6,7 @@ programs:
     name: prokka
     exe: "prokka"
   prophet:
-    version: latest
+    version: 1.1
     maintainer: nickp60
     name: prophet
     exe: "carton exec /ProphET/ProphET_standalone.pl"

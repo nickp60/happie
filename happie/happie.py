@@ -162,7 +162,6 @@ def parse_mlplasmids_results(mlplasmids_results):
             mlplasmids_results_text.append(results)
     for line in mlplasmids_results_text:
         line = [x.replace('"', '') for x in line]
-        print(line)
         if line[5] == 'Plasmid':
             subresults = []
             for i in [0, 1, 6, 2, 7]:
@@ -177,7 +176,7 @@ def parse_mlplasmids_results(mlplasmids_results):
                     subresults.append(line[i])
                 # subresults.append(line[i].replace('"', ""))
             templated.append(subresults)
-            print(subresults)
+            # print(subresults)
     return templated
 
 def condensce_regions(all_results):
@@ -210,19 +209,49 @@ def annotate_overlaps():
         pass
 
 
-def write_annotate_mobile_genome(contigs, output_path,  all_results, non_overlapping_results):
+def write_annotated_mobile_genome(contigs, output_path,  all_results, non_overlapping_results):
     """write out all regions of interest to a single fasta file
     """
-    start_stop_dict = {} # {seq: {length, global_start, mobile_start, }}
+    # we want to make our hit list along side this for cgview
+    # ring 1 is the "genome"
+    # additional rings are for possible element/annoations
+    # {seq: {length, global_start, mobile_start, }}
+                    # entries.append(
+                    #     "\t".join(
+                    #         ["forward",
+                    #          str(i+2),
+                    #          str(rel_start),
+                    #          str(rel_end ),
+                    #          "gene",
+                    #          typ,
+                    #          program,
+                    #          "github.com/nickp60/happie"]))
+    cgview_entries= []
     total_length = 0
+    programs = set([x[0] for x in all_results ])
+    # start at ring 2; righ 1 is the base
+    program_rings = dict(zip(programs, ([x + 2 for x in range(len(programs))])))
     with open(contigs, "r") as inf, open(output_path, "w") as outf:
         for rec in SeqIO.parse(inf, "fasta"):
+            ring = 1
+            entry_start = total_length + 1
             regions_subset = [(x[3], x[4]) for x in non_overlapping_results if x[2] == rec.id]
             if not regions_subset:
                 continue
             seq = ""
             for region_start, region_end in regions_subset:
                 seq = seq + str(rec.seq[region_start - 1: region_end - 1])
+            cgview_entries.append(
+                "\t".join(
+                    ["forward",
+                     str(ring),
+                     str(entry_start),
+                     str(entry_start + len(seq)),
+                     "open_reading_frame",
+                     rec.id,
+                     "happie",
+                     "github.com/nickp60/happie"]))
+
             seqrec = SeqRecord(
                 Seq(str(seq), IUPAC.unambiguous_dna),
                 id=rec.id,  # should we differentiate?
@@ -233,10 +262,21 @@ def write_annotate_mobile_genome(contigs, output_path,  all_results, non_overlap
                 },
                 description='mobile elements from assembly')
             total_length += len(seqrec.seq)
-            previous_end = 0
+            previous_end = 1
             for program, typ, recid, start, stop in all_results:
                 if (rec.id == recid):
                     this_len = stop - start
+                    cgview_entries.append(
+                        "\t".join(
+                            ["forward",
+                             str(program_rings[program]),
+                             str(previous_end),
+                             str(previous_end + this_len),
+                             "open_reading_frame",
+                             program,
+                             typ,
+                             "github.com/nickp60/happie"]))
+
                     feature = SeqFeature(
                         FeatureLocation(
                             # start=4, end=199),
@@ -246,13 +286,10 @@ def write_annotate_mobile_genome(contigs, output_path,  all_results, non_overlap
                         qualifiers={"program": program,
                                     "product": typ}
                     )
-                    start_stop_dict[rec.id]
-                    previous_end += this_len
-                    seqrec.features.append(feature)
+                    previous_end = previous_end + this_len
             SeqIO.write(seqrec, outf, "genbank")
     print("wrote out %i bases" % total_length)
-    print(start_stop_dict)
-    return(total_length, start_stop_dict)
+    return(total_length + 1, cgview_entries)
 
 
 
@@ -353,12 +390,13 @@ def run_prophet(args, prokka, prophet_dir, images_dict):
         command=str(
             "{image} {exe} " +
             "--fasta_in /input/{infilefasta} --gff_in /input/{infilegff} " +
-            "--outdir /output/{outdir}/  2> {log}").format(
+            "--outdir /output/{outdir}/ --cores {cores} 2> {log}").format(
                 image=images_dict['prophet']['image'],
                 exe=images_dict['prophet']['exe'],
                 infilefasta=os.path.relpath(prokka.fna),
                 infilegff=os.path.relpath(prokka.gff),
                 outdir=os.path.relpath(prophet_dir),
+                cores=args.cores,
                 log=os.path.join(args.output, "PropheET_log.txt"))
     )
     print(prophet_cmd)
@@ -478,8 +516,7 @@ def run_abricate(args, abricate_dir, mobile_fasta, images_dict):
                        check=True)
 
 
-def make_cgview_tab_file(args, seqlen, start_stop_dict_reference,
-                         start_stop_dict, results_list):
+def make_cgview_tab_file(args, seqlen, cgview_entries):
     """
     http://wishart.biology.ualberta.ca/cgview/tab_input.html
     """
@@ -489,43 +526,8 @@ def make_cgview_tab_file(args, seqlen, start_stop_dict_reference,
         "%{}".format(seqlen),
         "!strand\tslot\tstart\tstop\ttype\tlabel\tmouseover\thyperlink"
     ]
-    entries = []
-    seq_start, seq_end = 0, 0
-    # the reference
-    for seqid, v in start_stop_dict_reference.items():
-        data = v['data']
-        seq_end = seq_end + sum([x[1]-x[0] for x in v['data']])
-        entries.append(
-            "\t".join(
-                ["forward", str(1), str(seq_start + 1), str(seq_end), "open_reading_frame",
-                 seqid, seqid, "github.com/nickp60/happie"]))
-        seq_start = seq_start + (seq_end - seq_start)
-
-    for i, region in enumerate(args.elements):
-        total_total = 0
-        for seqid, v in start_stop_dict.items():
-            data = v['data']
-            rel_seq_start = v['relstart']
-            # i = i + 1
-            seq_end = seq_end + sum([x[1]-x[0] for x in v['data']])
-            seq_start = seq_start + (seq_end - seq_start)
-            for rel_start, rel_end, program, typ, recid, start, stop in data:
-                if region == typ and recid == seqid:
-                    entries.append(
-                        "\t".join(
-                            ["forward",
-                             str(i+2),
-                             str(rel_start),
-                             str(rel_end ),
-                             "gene",
-                             typ,
-                             program,
-                             "github.com/nickp60/happie"]))
-                    # this works cause the last time through the
-                    # loop we get the last coord
-                    # total_total = total_total + rellen
     results.extend(header)
-    results.extend(entries)
+    results.extend(cgview_entries)
     return results
 
 
@@ -550,6 +552,7 @@ def run_cgview(args, cgview_tab, cgview_dir, images_dict):
                    stdout=subprocess.PIPE,
                    stderr=subprocess.PIPE,
                    check=True)
+
 
 def main(args=None):
     if args is None:
@@ -638,7 +641,6 @@ def main(args=None):
         dimob_parsed_result = parse_dimob_results(island_results)
         all_results.extend(dimob_parsed_result)
         results_list.append(dimob_parsed_result)
-    sys.exit()
     # print(all_results)
     non_overlapping_results = condensce_regions(all_results)
     reference_mobile_genome_path = os.path.join(args.output, "reference_mobile_genome.fasta")
@@ -654,21 +656,14 @@ def main(args=None):
     #     contigs=prokka_fna,
     #     output_path=mobile_genome_path,
     #     all_results=all_results)
-    seq_length, start_stop_dict = write_annotate_mobile_genome(
+    seq_length, cgview_entries = write_annotated_mobile_genome(
         contigs=prokka_fna,
         output_path=reference_mobile_genome_path,
         non_overlapping_results=non_overlapping_results,
         all_results=all_results)
-    print(start_stop_dict)
-    for k, v in start_stop_dict.items():
-        print(k, v["length"])
-        for kk in v['data']:
-            print(kk)
 
-    tab_data = make_cgview_tab_file(args, results_list=results_list,
-                                    start_stop_dict_reference=start_stop_dict_reference,
-                                    start_stop_dict=start_stop_dict,
-                                    seqlen=non_redundant_length)
+    tab_data = make_cgview_tab_file(args, cgview_entries=cgview_entries,
+                                    seqlen=seq_length)
     cgview_data = os.path.join(args.output, "cgview.tab")
     with open(cgview_data, "w") as outf:
         for line in tab_data:
