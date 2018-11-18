@@ -1,15 +1,15 @@
 # programs for happie pipeline
 programs:
   prokka:
-    version: 1.12
-    maintainer: ummidock
+    version: latest
+    maintainer: sjackman
     name: prokka
-    exe: "prokka"
+    exe: null
   prophet:
-    version: 1.1
+    version: 1.14
     maintainer: nickp60
     name: prophet
-    exe: "carton exec /ProphET/ProphET_standalone.pl"
+    exe: null
   mlplasmids:
     version: latest
     maintainer: nickp60

@@ -45,6 +45,9 @@ def get_args():  # pragma: no cover
                           default=4,
                           help="memory limit to use" +
                           "without extension.")
+    optional.add_argument("--images_dir", dest='images_dir',
+                          help="path to images from install",
+                          default=os.getcwd())
     optional.add_argument("-n", "--name", dest='name',
                           help="name of experiment; defaults to file name " +
                           "without extension.", default="test")
@@ -108,8 +111,9 @@ def make_containerized_cmd(args, command, indir=None, outdir=None):
         ).format(**locals())
     else:
         cmd = str(
-            "singularity exec -B " +
-        "{indir}:/input -B {outdir}:/output docker://{command}").format(**locals())
+            "singularity run -B " +
+            "{indir}:/input -B {outdir}:/output " +
+            "docker://{command}").format(**locals())
     return cmd
 
 def parse_prophet_results(results):
@@ -365,11 +369,10 @@ def run_annotation(args, prokka_dir, images_dict):
     prokka_cmd = make_containerized_cmd(
         args=args,
         command=str(
-            "{image} {exe} " +
+            "{image} " +
             "/input/{infile} -o /output/{outdir} --prefix {name} " +
             "--fast --cpus {cpus} 2> {log}").format(
                 image=images_dict['prokka']["image"],
-                exe=images_dict['prokka']["exe"],
                 infile=os.path.relpath(args.contigs),
                 outdir=os.path.relpath(prokka_dir),
                 name=args.name,
@@ -390,11 +393,10 @@ def run_prophet(args, prokka, prophet_dir, images_dict):
     prophet_cmd = make_containerized_cmd(
         args=args,
         command=str(
-            "{image} {exe} " +
+            "{image} " +
             "--fasta_in /input/{infilefasta} --gff_in /input/{infilegff} " +
             "--outdir /output/{outdir}/ --cores {cores} 2> {log}").format(
                 image=images_dict['prophet']['image'],
-                exe=images_dict['prophet']['exe'],
                 infilefasta=os.path.relpath(prokka.fna),
                 infilegff=os.path.relpath(prokka.gff),
                 outdir=os.path.relpath(prophet_dir),
