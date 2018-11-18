@@ -94,7 +94,7 @@ def test_exes(exes):
 
 
 
-def make_containerized_cmd(args, command, indir=None, outdir=None):
+def make_containerized_cmd(args, command, indir=None, outdir=None, sing=None):
     """
     note that memory must be provided in gigabytes
     """
@@ -111,9 +111,7 @@ def make_containerized_cmd(args, command, indir=None, outdir=None):
         ).format(**locals())
     else:
         cmd = str(
-            "singularity run -B " +
-            "{indir}:/input -B {outdir}:/output " +
-            "docker://{command}").format(**locals())
+            "{sing} {command}").format(**locals())
     return cmd
 
 def parse_prophet_results(results):
@@ -347,7 +345,9 @@ def run_annotation(args, prokka_dir, images_dict):
                 outdir=os.path.relpath(prokka_dir),
                 name=args.name,
                 cpus=args.cores,
-                log=os.path.join(args.output, "log.txt"))
+                log=os.path.join(args.output, "log.txt")),
+        sing=images_dict['prokka']["sing"]
+
     )
     print(prokka_cmd)
     subprocess.run([prokka_cmd],
@@ -371,7 +371,8 @@ def run_prophet(args, prokka, prophet_dir, images_dict):
                 infilegff=os.path.relpath(prokka.gff),
                 outdir=os.path.relpath(prophet_dir),
                 cores=args.cores,
-                log=os.path.join(args.output, "PropheET_log.txt"))
+                log=os.path.join(args.output, "PropheET_log.txt")),
+        sing=images_dict['prophet']["sing"]
     )
     print(prophet_cmd)
     subprocess.run([prophet_cmd],
@@ -394,7 +395,9 @@ def run_mlplasmids(args, prokka, mlplasmids_results, images_dict):
                 exe=images_dict['mlplasmids']['exe'],
                 infilefasta=os.path.relpath(prokka.fna),
                 outdir=os.path.relpath(mlplasmids_results),
-                log=os.path.join(args.output, "mlplasmids_log.txt"))
+                log=os.path.join(args.output, "mlplasmids_log.txt")),
+        sing=images_dict['mlplasmids']["sing"]
+
     )
     print(mlplasmids_cmd)
     subprocess.run([mlplasmids_cmd],
@@ -440,7 +443,9 @@ def run_dimob(args, prokka, island_results, images_dict):
                     image=images_dict['dimob']['image'],
                     infile=os.path.relpath(v["gbk"]),
                     outdir=os.path.relpath(v['result']),
-                    log=os.path.join(args.output, "dimob_log.txt"))
+                    log=os.path.join(args.output, "dimob_log.txt")),
+            sing=images_dict['dimob']["sing"]
+
         )
         print(island_cmd)
         subprocess.run([island_cmd],
@@ -474,7 +479,9 @@ def run_abricate(args, abricate_dir, mobile_fasta, images_dict):
                     exe=images_dict['abricate']['exe'],
                     infilefasta=os.path.relpath(mobile_fasta),
                     outdir=abricate_dir,
-                    log=os.path.join(args.output, "abricate"))
+                    log=os.path.join(args.output, "abricate")),
+        sing=images_dict['abricate']["sing"]
+
         )
         cmds.append(this_cmd)
     for cmd in cmds:
@@ -514,7 +521,9 @@ def run_cgview(args, cgview_tab, cgview_dir, images_dict):
                 exe=images_dict['cgview']['exe'],
                 infilefasta=os.path.relpath(cgview_tab),
                 outdir=os.path.join(os.path.relpath(cgview_dir), "cgview.svg"),
-                log=os.path.join(args.output, "cgview_log.txt"))
+                log=os.path.join(args.output, "cgview_log.txt")),
+        sing=images_dict['cgview']["sing"]
+
     )
     print(cgview_cmd)
     subprocess.run([cgview_cmd],
