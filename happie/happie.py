@@ -47,7 +47,8 @@ def get_args():  # pragma: no cover
                           "without extension.")
     optional.add_argument("--images_dir", dest='images_dir',
                           help="if using singularity, where to store your "
-                          +"singularity images", default=os.getcwd())
+                          +"singularity images",
+                          default=sm.get_happie_dir())
     optional.add_argument("-n", "--name", dest='name',
                           help="name of experiment; defaults to file name " +
                           "without extension.", default="test")

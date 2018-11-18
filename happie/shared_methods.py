@@ -32,3 +32,6 @@ def parse_docker_images(config):
                           "sing": sing_file,
                           "exe": v["exe"]}
     return images_dict
+
+def get_happie_dir():
+    return os.path.join(os.path.expanduser("~"), ".happie", "")
