@@ -20,7 +20,7 @@ from Bio.SeqRecord import SeqRecord
 from . import __version__
 from . import shared_methods as sm
 
-sing_images_dir = os.path.join(os.path.expanduser("~"), ".happie")
+sing_images_dir = os.path.join(os.path.expanduser("~"), ".happie", "")
 def get_args():  # pragma: no cover
     parser = argparse.ArgumentParser(
         description="fetch or update the docker images used as part of the happie pipeline",
@@ -59,20 +59,20 @@ def test_exe_exists(args):
 def install_image(args, image_dict):
     image = image_dict['image']
     sing_name = image_dict['sing']
+    cmds = []
     if args.virtualization == "docker":
-        cmd = "docker pull {image}".format(**locals())
+        cmds.append("docker pull {image}".format(**locals()))
     else:
-        cmd = str(
-            "singularity pull docker://" +
-            "{image} && mv {sing_name} {args.image_dir}"
-        ).format(**locals())
-    print(cmd)
-    subprocess.run([cmd],
-                   shell=sys.platform != "win32",
-                   stdout=subprocess.PIPE,
-                   stderr=subprocess.PIPE,
-                   # docker propperly pulls; singularity erros if image exists
-                   check=args.virtualization=="docker")
+        cmds.append("singularity pull docker://{image}".format(**locals()))          
+        cmds.append("mv {sing_name} {args.images_dir}".format(**locals()))
+    for cmd in cmds:
+        print(cmd)
+        subprocess.run([cmd],
+                       shell=sys.platform != "win32",
+                       stdout=subprocess.PIPE,
+                       stderr=subprocess.PIPE,
+                       # docker propperly pulls; singularity erros if image exists
+                       check=args.virtualization=="docker")
 
 
 def install_programs(args, config):
