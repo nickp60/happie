@@ -46,8 +46,8 @@ def get_args():  # pragma: no cover
                           help="memory limit to use" +
                           "without extension.")
     optional.add_argument("--images_dir", dest='images_dir',
-                          help="path to images from install",
-                          default=os.getcwd())
+                          help="if using singularity, where to store your "
+                          +"singularity images", default=os.getcwd())
     optional.add_argument("-n", "--name", dest='name',
                           help="name of experiment; defaults to file name " +
                           "without extension.", default="test")
@@ -417,7 +417,7 @@ def run_mlplasmids(args, prokka, mlplasmids_results, images_dict):
     mlplasmids_cmd = make_containerized_cmd(
         args=args,
         command=str(
-            "{image} {exe} " +
+            "{image} " +
             "/input/{infilefasta} /output/{outdir}  " +
             ".8 'Escherichia coli' 2> {log}").format(
                 image=images_dict['mlplasmids']['image'],
@@ -500,7 +500,7 @@ def run_abricate(args, abricate_dir, mobile_fasta, images_dict):
         this_cmd = make_containerized_cmd(
             args=args,
             command=str(
-                "{image} {exe} " +
+                "{image} " +
                 "--db {db}  /input/{infilefasta} > {outdir}/{db}.tab  " +
                 "2> {log}_{db}_log.txt").format(
                     image=images_dict['abricate']['image'],

@@ -26,6 +26,9 @@ def parse_docker_images(config):
     for k, v in programs.items():
         image_name = "{0}/{1}:{2}".format(
             v['maintainer'], v['name'], v['version'])
+        sing_file = "{}-{}.simg".format(
+            v['name'], v['version'])
         images_dict[k] = {"image": image_name,
+                          "sing": sing_file,
                           "exe": v["exe"]}
     return images_dict

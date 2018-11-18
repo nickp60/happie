@@ -28,8 +28,9 @@ def get_args():  # pragma: no cover
                         help="Whether this will be run with Docker or Singularity",
                         choices=["docker", "singularity"],
                         default="docker")
-    # parser.add_argument("-i", "--image_location", action="store",
-    #                     help="where to store your container images")
+    parser.add_argument("-i", "--images_dir", action="store",
+                        help="if using singularity, where to store your "
+                        +"singularity images", default=os.getcwd())
     optional = parser.add_argument_group('optional arguments')
     optional.add_argument("-h", "--help",
                           action="help", default=argparse.SUPPRESS,
@@ -52,18 +53,23 @@ def test_exe_exists(args):
                    stderr=subprocess.PIPE,
                    check=True)
 
-    
-def install_image(args, image_name):
+
+def install_image(args, image_dict):
+    image = image_dict['image']
+    sing_name = image_dict['sing']
     if args.virtualization == "docker":
-        cmd = "docker pull {image_name}".format(**locals())
+        cmd = "docker pull {image}".format(**locals())
     else:
-        cmd = "singularity pull docker://{image_name}".format(**locals())
+        cmd = str(
+            "singularity pull docker://" +
+            "{image} && mv {sing_name} {args.image_dir}"
+        ).format(**locals())
     print(cmd)
     subprocess.run([cmd],
                    shell=sys.platform != "win32",
                    stdout=subprocess.PIPE,
                    stderr=subprocess.PIPE,
-                   # docker propperly pulls; singularity erros if image exists 
+                   # docker propperly pulls; singularity erros if image exists
                    check=args.virtualization=="docker")
 
 
@@ -71,7 +77,7 @@ def install_programs(args, config):
     images_dict = sm.parse_docker_images(config)
     for k, v in images_dict.items():
         print("installing %s" % k)
-        install_image(args, v['image'])
+        install_image(args, v)
 
 
 def main(args=None):
@@ -82,7 +88,7 @@ def main(args=None):
         test_exe_exists(args)
     except Exception as e:
         print(e)
-        print("Error: %s executable is not install or not in PATH",
+        print("Error: %s executable is not install or not in PATH" %
               args.virtualization)
         sys.exit(1)
     config = sm.get_containers_manifest()
