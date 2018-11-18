@@ -20,6 +20,7 @@ from Bio.SeqRecord import SeqRecord
 from . import __version__
 from . import shared_methods as sm
 
+sing_images_dir = os.path.join(os.path.expanduser("~"), ".happie")
 def get_args():  # pragma: no cover
     parser = argparse.ArgumentParser(
         description="fetch or update the docker images used as part of the happie pipeline",
@@ -30,7 +31,8 @@ def get_args():  # pragma: no cover
                         default="docker")
     parser.add_argument("-i", "--images_dir", action="store",
                         help="if using singularity, where to store your "
-                        +"singularity images", default=os.getcwd())
+                        +"singularity images",
+                        default=sing_images_dir)
     optional = parser.add_argument_group('optional arguments')
     optional.add_argument("-h", "--help",
                           action="help", default=argparse.SUPPRESS,
@@ -91,6 +93,8 @@ def main(args=None):
         print("Error: %s executable is not install or not in PATH" %
               args.virtualization)
         sys.exit(1)
+    if args.virtualization == "singularity":
+        os.makedirs(args.images_dir, exist_ok=True)
     config = sm.get_containers_manifest()
     install_programs(args, config)
 
