@@ -460,13 +460,9 @@ def run_abricate(args, abricate_dir, mobile_fasta, images_dict):
     if os.path.exists(abricate_dir):
         shutil.rmtree(abricate_dir)
     os.makedirs(abricate_dir)
-    choices=["ncbi", "card", "resfinder",
-             "argannot",  "vfdb", "ecoli_vf"],
     cmds = []
     for db in args.analyses:
-        if db not in choices:
-            continue
-        # write to output stdout
+        print(db)
         this_cmd = make_containerized_cmd(
             args=args,
             command=str(
@@ -624,19 +620,22 @@ def main(args=None):
     all_results = []
     results_list = []
     if any([x=="prophages" for x in args.elements]):
-        prophet_parsed_result = parse_prophet_results(prophet_results)
-        all_results.extend(prophet_parsed_result)
-        results_list.append(prophet_parsed_result)
+        if os.path.exists(prophet_results) and os.path.getsize(prophet_results) > 0:
+            prophet_parsed_result = parse_prophet_results(prophet_results)
+            all_results.extend(prophet_parsed_result)
+            results_list.append(prophet_parsed_result)
     print(all_results)
     if any([x=="plasmids" for x in args.elements]):
-        mlplasmids_parsed_result = parse_mlplasmids_results(mlplasmids_results)
-        all_results.extend(mlplasmids_parsed_result)
-        results_list.append(mlplasmids_parsed_result)
+        if os.path.exists(mlplasmids_results) and os.path.getsize(mlplasmids_results) > 0:
+            mlplasmids_parsed_result = parse_mlplasmids_results(mlplasmids_results)
+            all_results.extend(mlplasmids_parsed_result)
+            results_list.append(mlplasmids_parsed_result)
     print(all_results)
     if any([x=="islands" for x in args.elements]):
-        dimob_parsed_result = parse_dimob_results(island_results)
-        all_results.extend(dimob_parsed_result)
-        results_list.append(dimob_parsed_result)
+        if os.path.exists(island_results) and os.path.getsize(island_results) > 0:
+            dimob_parsed_result = parse_dimob_results(island_results)
+            all_results.extend(dimob_parsed_result)
+            results_list.append(dimob_parsed_result)
     # print(all_results)
     non_overlapping_results = condensce_regions(all_results)
     mobile_genome_path_prefix = os.path.join(args.output, "total_mobile_genome")
@@ -660,7 +659,7 @@ def main(args=None):
         for line in tab_data:
             outf.write(line + "\n")
     #########################################
-    run_abricate(args, abricate_dir, mobile_fasta=reference_mobile_genome_path,
+    run_abricate(args, abricate_dir, mobile_fasta=mobile_genome_path_prefix + ".fasta",
                  images_dict=images_dict)
     run_cgview(args, cgview_tab=cgview_data, cgview_dir=cgview_dir, images_dict=images_dict)
 
