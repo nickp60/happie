@@ -2,7 +2,7 @@
 programs:
   prokka:
     version: latest
-    maintainer: sjackman
+    maintainer: nickp60
     name: prokka
     exe: null
   prophet:

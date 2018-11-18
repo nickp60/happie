@@ -298,36 +298,6 @@ def write_annotated_mobile_genome(contigs, output_path,  all_results, non_overla
     return(total_length + 1, cgview_entries)
 
 
-
-
-            # start_stop_dict[rec.id] = {"length": len(rec.seq),
-            #                            "data": [],
-            #                            "relstart": total_length}
-            # this_length = 0
-            # for program, type, recid, start, stop in all_results:
-            #     these_features = []
-            #     if rec.id == recid:
-            #         start, stop = int(start), int(stop)
-            #         header = \
-            #             "lcl|{recid}-{start}-{stop}|{program}-{type}".format(
-            #                 **locals())
-            #         SeqIO.write(
-            #             SeqRecord(
-            #                 # account for 1 index in ext tools
-            #                 rec.seq[start - 1: stop - 1],
-            #                 id=header,
-            #                 description="",
-            #                 name=""
-            #             ),
-            #             outf, "fasta"
-            #         )
-            #         these_features.extend([total_length, total_length+(stop-start), program, type, recid, start, stop])
-            #         total_length += (stop - start)
-            #         start_stop_dict[rec.id]['data'].append(these_features)
-            # # total_length = total_length + this_length
-            # # start_stop_dict[rec.id]['rel_start'] = this_length
-
-
 def write_out_names_key(inA, inB, outfile):
     contig_key = []
     inA_names = []
@@ -557,6 +527,28 @@ def run_cgview(args, cgview_tab, cgview_dir, images_dict):
                    stderr=subprocess.PIPE,
                    check=True)
 
+
+def make_circleator():
+    """
+
+    type - either the name of a predefined track type OR the keyword new
+    name - a name by which the track may be referenced from elsewhere in the configuration file
+    glyph - the Circleator “glyph” used to render this track
+    heightf - the height of the track as a fraction of the circle’s radius (0-1)
+    innerf - position of the innermost part of the track as a fraction of the circle’s radius (0-1)
+    outerf - position of the outermost part of the track as a fraction of the circle’s radius (0-1)
+    data - path to a data file, if one is required by the chosen track type and/or glyph
+    feat_type - display only features of the specified type (e.g., “gene”, “tRNA”)
+    feat_strand - display only features on the specified strand (e.g., “-“, “+”, “-1”, “1”)
+    color1 - interpretation depends on the track type: usually the SVG fill color
+    color2 - interpretation depends on the track type: usually the SVG stroke (outline) color
+    opacity - opacity of the track between 0 and 1, where 0 = invisible/completely transparent and 1=completely opaque
+    zindex - integer z-index of the track: tracks with higher z-indexes are drawn on top of those with lower z-indexes
+    options - a comma-delimited list of track options in the format “key=value”
+
+
+    """
+    pass
 
 def main(args=None):
     if args is None:
