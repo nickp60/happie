@@ -95,7 +95,7 @@ def test_exes(exes):
 
 
 
-def make_containerized_cmd(args, command, indir=None, outdir=None, sing=None):
+def make_containerized_cmd(args, image, dcommand, scommand, indir=None, outdir=None, sing=None):
     """
     note that memory must be provided in gigabytes
     """
@@ -108,11 +108,13 @@ def make_containerized_cmd(args, command, indir=None, outdir=None, sing=None):
             "docker run --rm " +
             "--memory={args.memory}g " +
             "--cpus={args.cores} " +
-            "-v {indir}:/input -v {outdir}:/output {command}"
+            "-v {indir}:/input " +
+            "-v {outdir}:/output " +
+            "{image} {dcommand}"
         ).format(**locals())
     else:
         cmd = str(
-            "{sing} {command}").format(**locals())
+            "{args.images_dir}{sing} {scommand}").format(**locals())
     return cmd
 
 def parse_prophet_results(results):
@@ -337,17 +339,24 @@ def run_annotation(args, prokka_dir, images_dict):
     print("running prokka")
     prokka_cmd = make_containerized_cmd(
         args=args,
-        command=str(
-            "{image} " +
+        image=images_dict['prokka']["image"],
+        sing=images_dict['prokka']["sing"],
+        dcommand=str(
             "/input/{infile} -o /output/{outdir} --prefix {name} " +
             "--fast --cpus {cpus} 2> {log}").format(
-                image=images_dict['prokka']["image"],
                 infile=os.path.relpath(args.contigs),
                 outdir=os.path.relpath(prokka_dir),
                 name=args.name,
                 cpus=args.cores,
                 log=os.path.join(args.output, "log.txt")),
-        sing=images_dict['prokka']["sing"]
+        scommand=str(
+            "{infile} -o {outdir} --prefix {name} " +
+            "--fast --cpus {cpus} 2> {log}").format(
+                infile=args.contigs,
+                outdir=prokka_dir,
+                name=args.name,
+                cpus=args.cores,
+                log=os.path.join(args.output, "log.txt"))
 
     )
     print(prokka_cmd)
@@ -363,17 +372,24 @@ def run_prophet(args, prokka, prophet_dir, images_dict):
         shutil.rmtree(prophet_dir)
     prophet_cmd = make_containerized_cmd(
         args=args,
-        command=str(
-            "{image} " +
+        image=images_dict['prophet']['image'],
+        sing=images_dict['prophet']["sing"],
+        dcommand=str(
             "--fasta_in /input/{infilefasta} --gff_in /input/{infilegff} " +
             "--outdir /output/{outdir}/ --cores {cores} 2> {log}").format(
-                image=images_dict['prophet']['image'],
                 infilefasta=os.path.relpath(prokka.fna),
                 infilegff=os.path.relpath(prokka.gff),
                 outdir=os.path.relpath(prophet_dir),
                 cores=args.cores,
                 log=os.path.join(args.output, "PropheET_log.txt")),
-        sing=images_dict['prophet']["sing"]
+        scommand=str(
+            "--fasta_in {infilefasta} --gff_in {infilegff} " +
+            "--outdir {outdir}/ --cores {cores} 2> {log}").format(
+                infilefasta=os.path.relpath(prokka.fna),
+                infilegff=os.path.relpath(prokka.gff),
+                outdir=os.path.relpath(prophet_dir),
+                cores=args.cores,
+                log=os.path.join(args.output, "PropheET_log.txt")),
     )
     print(prophet_cmd)
     subprocess.run([prophet_cmd],
@@ -388,16 +404,21 @@ def run_mlplasmids(args, prokka, mlplasmids_results, images_dict):
         os.remove(mlplasmids_results)
     mlplasmids_cmd = make_containerized_cmd(
         args=args,
-        command=str(
-            "{image} " +
+                image=images_dict['mlplasmids']['image'],
+        sing=images_dict['mlplasmids']["sing"],
+        dcommand=str(
             "/input/{infilefasta} /output/{outdir}  " +
             ".8 'Escherichia coli' 2> {log}").format(
-                image=images_dict['mlplasmids']['image'],
-                exe=images_dict['mlplasmids']['exe'],
                 infilefasta=os.path.relpath(prokka.fna),
                 outdir=os.path.relpath(mlplasmids_results),
                 log=os.path.join(args.output, "mlplasmids_log.txt")),
-        sing=images_dict['mlplasmids']["sing"]
+        scommand=str(
+            "{infilefasta} {outdir}  " +
+            ".8 'Escherichia coli' 2> {log}").format(
+                infilefasta=prokka.fna,
+                outdir=mlplasmids_results,
+                log=os.path.join(args.output, "mlplasmids_log.txt")),
+
 
     )
     print(mlplasmids_cmd)
@@ -439,13 +460,18 @@ def run_dimob(args, prokka, island_results, images_dict):
         # Note that dimob does not have an exe
         island_cmd = make_containerized_cmd(
             args=args,
-            command=str(
-                "{image} /input/{infile} /output/{outdir}" ).format(
-                    image=images_dict['dimob']['image'],
+            sing=images_dict['dimob']["sing"],
+            image=images_dict['dimob']['image'],
+            dcommand=str(
+                "/input/{infile} /output/{outdir}" ).format(
                     infile=os.path.relpath(v["gbk"]),
                     outdir=os.path.relpath(v['result']),
                     log=os.path.join(args.output, "dimob_log.txt")),
-            sing=images_dict['dimob']["sing"]
+            scommand=str(
+                "{infile} {outdir}" ).format(
+                    infile=v["gbk"],
+                    outdir=v['result'],
+                    log=os.path.join(args.output, "dimob_log.txt")),
 
         )
         print(island_cmd)
@@ -471,17 +497,23 @@ def run_abricate(args, abricate_dir, mobile_fasta, images_dict):
         print(db)
         this_cmd = make_containerized_cmd(
             args=args,
-            command=str(
-                "{image} " +
+            image=images_dict['abricate']['image'],
+            sing=images_dict['abricate']["sing"],
+            dcommand=str(
                 "--db {db}  /input/{infilefasta} > {outdir}/{db}.tab  " +
                 "2> {log}_{db}_log.txt").format(
-                    image=images_dict['abricate']['image'],
                     db=db,
-                    exe=images_dict['abricate']['exe'],
                     infilefasta=os.path.relpath(mobile_fasta),
                     outdir=abricate_dir,
                     log=os.path.join(args.output, "abricate")),
-        sing=images_dict['abricate']["sing"]
+            scommand=str(
+                "--db {db}  {infilefasta} > {outdir}/{db}.tab  " +
+                "2> {log}_{db}_log.txt").format(
+                    db=db,
+                    infilefasta=mobile_fasta,
+                    outdir=abricate_dir,
+                    log=os.path.join(args.output, "abricate")),
+
 
         )
         cmds.append(this_cmd)
@@ -515,15 +547,20 @@ def run_cgview(args, cgview_tab, cgview_dir, images_dict):
     os.makedirs(cgview_dir)
     cgview_cmd = make_containerized_cmd(
         args=args,
-        command=str(
-            "{image} {exe} " +
+        image=images_dict['cgview']['image'],
+        sing=images_dict['cgview']["sing"],
+        dcommand=str(
             "-i /input/{infilefasta} -f svg -o /output/{outdir} -I T").format(
-                image=images_dict['cgview']['image'],
                 exe=images_dict['cgview']['exe'],
                 infilefasta=os.path.relpath(cgview_tab),
                 outdir=os.path.join(os.path.relpath(cgview_dir), "cgview.svg"),
                 log=os.path.join(args.output, "cgview_log.txt")),
-        sing=images_dict['cgview']["sing"]
+        scommand=str(
+            "-i {infilefasta} -f svg -o {outdir} -I T").format(
+                exe=images_dict['cgview']['exe'],
+                infilefasta=cgview_tab,
+                outdir=os.path.join(cgview_dir, "cgview.svg"),
+                log=os.path.join(args.output, "cgview_log.txt")),
 
     )
     print(cgview_cmd)
@@ -671,7 +708,7 @@ def main(args=None):
     #########################################
     run_abricate(args, abricate_dir, mobile_fasta=mobile_genome_path_prefix + ".fasta",
                  images_dict=images_dict)
-    run_cgview(args, cgview_tab=cgview_data, cgview_dir=cgview_dir, images_dict=images_dict)
+    # run_cgview(args, cgview_tab=cgview_data, cgview_dir=cgview_dir, images_dict=images_dict)
 
 if __name__ == "__main__":
     args = get_args()
