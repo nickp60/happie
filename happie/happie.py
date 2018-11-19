@@ -8,6 +8,8 @@ import os
 import unittest
 import itertools
 import multiprocessing
+import random
+import string
 import subprocess
 import glob
 import pkg_resources
@@ -214,7 +216,7 @@ def annotate_overlaps():
         pass
 
 
-def write_annotated_mobile_genome(contigs, output_path,  all_results, non_overlapping_results):
+def write_annotated_mobile_genome(contigs,seed, output_path,  all_results, non_overlapping_results):
     """write out all regions of interest to a single fasta file
     """
     # we want to make our hit list along side this for cgview
@@ -236,8 +238,12 @@ def write_annotated_mobile_genome(contigs, output_path,  all_results, non_overla
     programs = set([x[0] for x in all_results ])
     # start at ring 2; righ 1 is the base
     program_rings = dict(zip(programs, ([x + 2 for x in range(len(programs))])))
+    # make prefix based on seed
+    random.seed(seed)
+    locus_prefix = ''.join(random.choice(string.ascii_uppercase) for x in range(6))
+    locus_start, locus_increment = 5, 5
     with open(contigs, "r") as inf, open(output_path + ".fasta", "w") as outfasta, \
-    open(output_path + ".gbk", "w") as outgbk:
+         open(output_path + ".gbk", "w") as outgbk:
         for rec in SeqIO.parse(inf, "fasta"):
             ring = 1
             entry_start = total_length + 1
@@ -288,11 +294,16 @@ def write_annotated_mobile_genome(contigs, output_path,  all_results, non_overla
                             # start=4, end=199),
                             start=previous_end + 1,
                             end=previous_end + 1 + this_len),
-                        type='misc_feature',
-                        qualifiers={"program": program,
-                                    "product": typ}
+                        type='gene',
+                        qualifiers={
+                            "locus_tag": "{}_{}".format(
+                                locus_prefix, locus_start),
+                            "program": program,
+                            "product": typ}
                     )
+                    locus_start += locus_increment
                     previous_end = previous_end + this_len
+                    seqrec.features.append(feature)
             SeqIO.write(seqrec, outfasta, "fasta")
             SeqIO.write(seqrec, outgbk, "genbank")
     print("wrote out %i bases" % total_length)
@@ -685,7 +696,7 @@ def main(args=None):
             results_list.append(dimob_parsed_result)
     # print(all_results)
     non_overlapping_results = condensce_regions(all_results)
-    mobile_genome_path_prefix = os.path.join(args.output, "total_mobile_genome")
+    mobile_genome_path_prefix = os.path.join(args.output, "mobile_genome")
     output_regions = os.path.join(args.output, "mobile_genome_coords")
     with open(output_regions, "w") as outf:
         for line in all_results:
@@ -694,6 +705,7 @@ def main(args=None):
     write_out_names_key(inA=args.contigs, inB=prokka_fna,
                         outfile=output_key_path)
     seq_length, cgview_entries = write_annotated_mobile_genome(
+        seed=os.path.basename(args.contigs),
         contigs=prokka_fna,
         output_path=mobile_genome_path_prefix,
         non_overlapping_results=non_overlapping_results,
