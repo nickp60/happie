@@ -16,8 +16,8 @@ programs:
     name: mlplasmids
     exe: "Rscript /bin/run_mlplasmids.R"
   dimob:
-    version: 1.0.0
-    maintainer: brinkmanlab
+    version: latest
+    maintainer: nickp60
     name: islandpath
     exe: null
   abricate:

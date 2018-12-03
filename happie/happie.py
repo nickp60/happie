@@ -26,9 +26,11 @@ def get_args():  # pragma: no cover
     parser = argparse.ArgumentParser(
         description="extract the mobile elements for pangenome analysis",
         add_help=False)
+    # contigs not needed if just re-analyzing the results
     parser.add_argument("--contigs", action="store",
-                        help="FASTA formatted genome or set of contigs",
-                        required="-p" not in sys.argv)
+                        # required="-s 6" not in sys.argv,
+                        help="FASTA formatted genome or set of contigs"
+    )
     parser.add_argument("-o", "--output", action="store",
                         help="destination dir", required=True)
 
@@ -55,6 +57,9 @@ def get_args():  # pragma: no cover
     optional.add_argument("--skip_rename", dest='skip_rename',
                           action="store_true",
                           help="skip initial contig renaming.")
+    optional.add_argument("--skip_reannotate", dest='skip_reannotate',
+                          action="store_true",
+                          help="skip re-annotation of mobile genome with prokka.")
     optional.add_argument("--elements", dest='elements',
                           action="store", nargs="*",
                           default=["plasmids", "islands", "prophages", "is"],
@@ -320,10 +325,10 @@ def write_out_names_key(inA, inB, outfile):
                 a[0], a[1], b[0], b[1]))
 
 
-def run_annotation(args, prokka_dir, images_dict):
-    if not args.skip_rename:
+def run_annotation(args, contigs, prokka_dir, images_dict, skip_rename=True):
+    if not skip_rename:
         dest_fasta = os.path.join(args.output, "new_fasta.fasta")
-        with open(args.contigs, "r") as inf, open(dest_fasta, "w") as outf:
+        with open(contigs, "r") as inf, open(dest_fasta, "w") as outf:
             for i, rec in enumerate(SeqIO.parse(inf, "fasta")):
                 header = "lcl_" + str(i+1)
                 SeqIO.write(
@@ -344,7 +349,7 @@ def run_annotation(args, prokka_dir, images_dict):
         dcommand=str(
             "/input/{infile} -o /output/{outdir} --prefix {name} " +
             "--fast --cpus {cpus} 2> {log}").format(
-                infile=os.path.relpath(args.contigs),
+                infile=os.path.relpath(contigs),
                 outdir=os.path.relpath(prokka_dir),
                 name=args.name,
                 cpus=args.cores,
@@ -608,7 +613,8 @@ def main(args=None):
     # make output dir names
     config_data = sm.get_containers_manifest()
     images_dict = sm.parse_docker_images(config_data)
-    prokka_dir = os.path.join(args.output, "prokka")
+    prokka_dir = os.path.join(args.output, "source_prokka")
+    mobile_prokka_dir = os.path.join(args.output, "mobile_prokka")
     prophet_dir = os.path.join(args.output, "ProphET", "")
     prophet_results = os.path.join(prophet_dir, "phages_coords")
     mobsuite_dir = os.path.join(args.output, "mobsuite", "")
@@ -630,7 +636,7 @@ def main(args=None):
     # if args.cores is None:
     #     args.cores = multiprocessing.cpu_count()
     if args.restart_stage < 2:
-        run_annotation(args, prokka_dir, images_dict),
+        run_annotation(args, contigs=args.contigs, prokka_dir=prokka_dir, images_dict=images_dict, skip_rename=args.skip_rename),
     else:
         prokka_dir = os.path.abspath(os.path.expanduser(prokka_dir))
         example_prokka_for_name_parsing = \
@@ -689,7 +695,7 @@ def main(args=None):
     output_regions = os.path.join(args.output, "mobile_genome_coords")
     with open(output_regions, "w") as outf:
         for line in all_results:
-            outf.write("\t".join([str(x) for x in line]) + "\n")
+            outf.write(args.contigs + "\t" + "\t".join([str(x) for x in line]) + "\n")
     output_key_path = os.path.join(args.output, "names_key")
     write_out_names_key(inA=args.contigs, inB=prokka_fna,
                         outfile=output_key_path)
@@ -708,6 +714,11 @@ def main(args=None):
     #########################################
     run_abricate(args, abricate_dir, mobile_fasta=mobile_genome_path_prefix + ".fasta",
                  images_dict=images_dict)
+    if not args.skip_reannotate:
+        run_annotation(args, contigs=mobile_genome_path_prefix + ".fasta",
+                       prokka_dir=mobile_prokka_dir, images_dict=images_dict,
+                       skip_rename=True),
+        
     # run_cgview(args, cgview_tab=cgview_data, cgview_dir=cgview_dir, images_dict=images_dict)
 
 if __name__ == "__main__":
