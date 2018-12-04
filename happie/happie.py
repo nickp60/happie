@@ -336,9 +336,12 @@ def write_out_names_key(inA, inB, outfile):
                 a[0], a[1], b[0], b[1]))
 
 
-def run_annotation(args, contigs, prokka_dir, images_dict, skip_rename=True):
+def run_annotation(args, contigs, prokka_dir, images_dict, skip_rename=True,
+                   new_name="new_fasta.fasta"):
+    if os.path.exists(prokka_dir):
+        shutil.rmtree(prokka_dir)
     if not skip_rename:
-        dest_fasta = os.path.join(args.output, "new_fasta.fasta")
+        dest_fasta = os.path.join(args.output, new_name)
         with open(contigs, "r") as inf, open(dest_fasta, "w") as outf:
             for i, rec in enumerate(SeqIO.parse(inf, "fasta")):
                 header = "lcl_" + str(i+1)
@@ -503,14 +506,16 @@ def run_dimob(args, prokka, island_results, images_dict):
                 outf.write(k + "\t" + line)
 
 
-def run_abricate(args, abricate_dir, mobile_fasta, images_dict):
+def run_abricate(args, abricate_dir, mobile_fasta, images_dict, all_results):
     # remove old results
     if os.path.exists(abricate_dir):
         shutil.rmtree(abricate_dir)
     os.makedirs(abricate_dir)
     cmds = []
+    outfiles = []
     for db in args.analyses:
         print(db)
+        outfiles.append("{outdir}/{db}.tab".format(outdir=abricate_dir, db=db))
         this_cmd = make_containerized_cmd(
             args=args,
             image=images_dict['abricate']['image'],
@@ -540,6 +545,13 @@ def run_abricate(args, abricate_dir, mobile_fasta, images_dict):
                        stdout=subprocess.PIPE,
                        stderr=subprocess.PIPE,
                        check=True)
+        
+    with open(all_results, "w") as outf:
+        for f in outfiles:
+            for line in open(f, "r"):
+                outf.write(line)
+        
+                        
 
 
 def make_cgview_tab_file(args, seqlen, cgview_entries):
@@ -624,7 +636,7 @@ def main(args=None):
     # make output dir names
     config_data = sm.get_containers_manifest()
     images_dict = sm.parse_docker_images(config_data)
-    prokka_dir = os.path.join(args.output, "source_prokka")
+    prokka_dir = os.path.join(args.output, "prokka")
     mobile_prokka_dir = os.path.join(args.output, "mobile_prokka")
     prophet_dir = os.path.join(args.output, "ProphET", "")
     prophet_results = os.path.join(prophet_dir, "phages_coords")
@@ -647,13 +659,17 @@ def main(args=None):
     # if args.cores is None:
     #     args.cores = multiprocessing.cpu_count()
     if args.restart_stage < 2:
-        run_annotation(args, contigs=args.contigs, prokka_dir=prokka_dir, images_dict=images_dict, skip_rename=args.skip_rename),
+        run_annotation(args, contigs=args.contigs, prokka_dir=prokka_dir,
+                       images_dict=images_dict, skip_rename=args.skip_rename,
+                       new_name="tmp_original.fasta")
     else:
         prokka_dir = os.path.abspath(os.path.expanduser(prokka_dir))
-        example_prokka_for_name_parsing = \
-            glob.glob(os.path.join(prokka_dir, "*.fna"))[0]
+        print(prokka_dir)
+        examples_prokka_for_name_parsing = \
+            glob.glob(os.path.join(prokka_dir, "*.fna"))
+        print(examples_prokka_for_name_parsing)
         args.name = os.path.splitext(
-            os.path.basename(example_prokka_for_name_parsing))[0]
+            os.path.basename(examples_prokka_for_name_parsing[0]))[0]
 
     # set some names of shtuff
     try:
@@ -724,12 +740,13 @@ def main(args=None):
         for line in tab_data:
             outf.write(line + "\n")
     #########################################
+    abricate_data = os.path.join(args.output, "abricate.tab")
     run_abricate(args, abricate_dir, mobile_fasta=mobile_genome_path_prefix + ".fasta",
-                 images_dict=images_dict)
+                 images_dict=images_dict, all_results=abricate_data)
     if not args.skip_reannotate:
         run_annotation(args, contigs=mobile_genome_path_prefix + ".fasta",
                        prokka_dir=mobile_prokka_dir, images_dict=images_dict,
-                       skip_rename=True),
+                       skip_rename=False, new_name="tmp_mobile.fasta")
         
     # run_cgview(args, cgview_tab=cgview_data, cgview_dir=cgview_dir, images_dict=images_dict)
 
