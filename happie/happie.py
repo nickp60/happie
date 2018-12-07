@@ -13,7 +13,7 @@ import string
 import subprocess
 import glob
 import pkg_resources
-
+import yaml
 from argparse import Namespace
 from Bio.Seq import Seq
 from Bio import SeqIO
@@ -30,7 +30,6 @@ def get_args():  # pragma: no cover
         add_help=False)
     # contigs not needed if just re-analyzing the results
     parser.add_argument("--contigs", action="store",
-                        # required="-s 6" not in sys.argv,
                         help="FASTA formatted genome or set of contigs"
     )
     parser.add_argument("-o", "--output", action="store",
@@ -545,13 +544,13 @@ def run_abricate(args, abricate_dir, mobile_fasta, images_dict, all_results):
                        stdout=subprocess.PIPE,
                        stderr=subprocess.PIPE,
                        check=True)
-        
+
     with open(all_results, "w") as outf:
         for f in outfiles:
             for line in open(f, "r"):
                 outf.write(line)
-        
-                        
+
+
 
 
 def make_cgview_tab_file(args, seqlen, cgview_entries):
@@ -621,10 +620,39 @@ def make_circleator():
     """
     pass
 
+
+def write_out_yaml_args(args, outpath):
+    if os.path.exists(outpath):
+        new_path = outpath + ".bak"
+        shutil.move(outpath, new_path)
+    with open(outpath, "w") as outf:
+        yaml.dump(args, outf)
+
+def read_in_yaml_args(outpath):
+    if not os.path.exists(outpath):
+        raise FileNotFoundError("cannot open file %s" % outpath)
+    with open(outpath, "r") as outf:
+        new_args = yaml.load( outf)
+    return new_args
+
+def recheck_required_args(args):
+    if args.contigs is None:
+        raise ValueError("no --contigs provided! see 'happie -h'")
+
+def coords_to_merged_gff(coords):
+    all_coords = [x[3] for x in coords]
+    all_coords.expand([x[4] for x in coords])
+    mn, mx = min(all_coords), max(all_coords)
+    pass
+
 def main(args=None):
     if args is None:
         args = get_args()
     args.output = os.path.abspath(os.path.expanduser(args.output))
+    test_exes(exes=[args.virtualization])
+    if args.restart_stage == 1:
+        recheck_required_args(args)
+    recheck_required_args(args)
     try:
         if args.restart_stage == 1:
             os.makedirs(args.output, exist_ok=False)
@@ -647,12 +675,15 @@ def main(args=None):
     mlplasmids_results = os.path.join(args.output, "mlplasmids", "results.txt")
     abricate_dir = os.path.join(args.output, "abricate", "")
     cgview_dir = os.path.join(args.output, "cgview", "")
-    test_exes(exes=[args.virtualization])
     # make sub directories.  We don't care if they already exist;
     #  cause we clobber them later if they will cause problems for reexecution
+    # except dont make prokka dirs
     for path in [prophet_dir, mobsuite_dir, mlplasmids_dir, island_dir,
                  abricate_dir]:
         os.makedirs(path, exist_ok=True)
+
+    # write out args for easier re-running
+    write_out_yaml_args(args, outpath=os.path.join(args.output, "happie_args.yaml"))
 
     # This causes problems on HPCs when I forget to set cores:(
     #    I set a default in the args
@@ -663,6 +694,23 @@ def main(args=None):
                        images_dict=images_dict, skip_rename=args.skip_rename,
                        new_name="tmp_original.fasta")
     else:
+        # read in old config file, if it exists. for now we just get the old
+        # path to the contigs, so you dont have to remember how exacly you ran
+        # the command to reprocess the results
+        try:
+            old_args = read_in_yaml_args(
+                outpath=os.path.join(args.output, "happie_args.yaml")
+            )
+            args.contigs = old_args.contigs
+        except ValueError:
+            print("cannot parse old config!")
+            try:
+                recheck_required_args(args)
+            except Exception as e:
+                print(e)
+                raise ValueError("When rerunning old analyses without a " +
+                                 "'happie_args.yaml' file in outdir, all "+
+                                 " the required args must be provided")
         prokka_dir = os.path.abspath(os.path.expanduser(prokka_dir))
         print(prokka_dir)
         examples_prokka_for_name_parsing = \
@@ -747,7 +795,7 @@ def main(args=None):
         run_annotation(args, contigs=mobile_genome_path_prefix + ".fasta",
                        prokka_dir=mobile_prokka_dir, images_dict=images_dict,
                        skip_rename=False, new_name="tmp_mobile.fasta")
-        
+
     # run_cgview(args, cgview_tab=cgview_data, cgview_dir=cgview_dir, images_dict=images_dict)
 
 if __name__ == "__main__":

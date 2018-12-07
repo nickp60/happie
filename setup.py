@@ -55,7 +55,10 @@ setup(
     author_email='nickp60@gmail.com',
     license='MIT',
     # handle requirments
-    install_requires=["Biopython"],
+    install_requires=[
+        "Biopython",
+        "pyyaml"
+    ],
     # See https://pypi.python.org/pypi?%3Aaction=list_classifiers
     classifiers=[
         'Development Status :: 3 - Alpha',

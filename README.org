@@ -1,3 +1,4 @@
+[[icon/logo.png]]
 * Happie
 Happie is a wrapper for several independent programs used to identify different mobile elements.
 
