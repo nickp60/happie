@@ -30,7 +30,8 @@ def get_args():  # pragma: no cover
         add_help=False)
     # contigs not needed if just re-analyzing the results
     parser.add_argument("--contigs", action="store",
-                        help="FASTA formatted genome or set of contigs"
+                        help="FASTA or Genbank formatted genome or set of " +
+                        "contigs"
     )
     parser.add_argument("-o", "--output", action="store",
                         help="destination dir", required=True)
@@ -690,6 +691,25 @@ def main(args=None):
     # if args.cores is None:
     #     args.cores = multiprocessing.cpu_count()
     if args.restart_stage < 2:
+        isfasta = False
+        with open(args.contigs, "r") as inf:
+            for line in inf:
+                if  line.startswith(">"):
+                    isfasta = True
+                break
+        if not isfasta:
+            print("converting input to fasta")
+            fasta_version = os.path.join(
+                args.output,
+                os.path.basename(os.path.splitext(args.contigs)[0] + ".fna")
+            )
+            with open(args.contigs, "r") as i2, open(fasta_version, "w") as o2:
+                for rec in SeqIO.parse(i2, "genbank"):
+                    SeqIO.write(rec, o2, "fasta")
+            args.contigs = fasta_version
+        else:
+            print("input is fasta")
+
         run_annotation(args, contigs=args.contigs, prokka_dir=prokka_dir,
                        images_dict=images_dict, skip_rename=args.skip_rename,
                        new_name="tmp_original.fasta")

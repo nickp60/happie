@@ -1,0 +1,78 @@
+---
+title: "validation"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd("GitHub/happie/validation/")
+library(tidyverse)
+```
+
+## DAta
+
+We downloaded the word doc of the supplementary data fro Casjens 2013, and then transformated that into a slightly less terrible excel file.  This was difficult, as between 2003 and now, everything from gene names to taxonomy changed.  The original link to the repository at Venter is broken, and so I had to spend a fair amount of time manually combing the databases for likely strains. 
+
+
+```{r}
+
+
+dat <- readxl::read_xlsx("./casjen2003.xlsx", sheet = 2)
+dat <- dat %>% fill(host, ftp, assembly) #%>% View()
+(dat$start_gene <- gsub("(.*)[…\\.]*(.*)", "\\1", dat$genes))
+dat$ftp_gbk <- gsub(".fna.gz", ".gbff.gz", dat$ftp)
+
+```
+
+Then, for testing, I downloaded one:
+
+```{r}
+dir.create("genomes")
+test_file_path <- "genomes/tmp.gbk"
+this_path <- dat[1, "ftp_gbk"]
+if (!file.exists(test_file_path)){
+  cmd <- paste("curl -L", this_path, "| gunzip  >", test_file_path)
+  print(cmd)
+  system(cmd)
+}
+```
+Now, for this genome, we need to see if a locus tag given ("AgrC0835"") actually match whats in the file.  They dont in this case (old locus tag is "Agr_C_835"). The fun continues; these must be added manually.
+
+So, I downloaded them all:
+```{r exec=F}
+for (i in 1:nrow(dat)){
+  test_file_path <- file.path("genomes", paste0(gsub(" ", "_", dat$host[i]), ".gbk"))
+  this_path <- dat[i, "ftp_gbk"]
+  if (!file.exists(test_file_path)){
+    cmd <- paste("curl -L", this_path, "| gunzip  >", test_file_path)
+    print(cmd)
+    system(cmd)
+  }
+}
+```
+We need a new copy of the table to annotate:
+
+```{r}
+file.copy(from = "./casjen2003.xlsx", to="./casjen2003_newloci.xlsx", overwrite = F)
+#write.table(dat, file="annotated.csv", sep=",", row.names = F)
+```
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

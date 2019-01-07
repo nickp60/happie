@@ -107,22 +107,31 @@ t.test(dat)
 
 
 #install.packages("caret")  
-
+dat3 <-dat2[, c("source", "GENE.x")]
+dat3$GENE.x <- as.numeric(as.factor(dat3$GENE.x))
+dat3$source <- ifelse(grepl("clinical", dat3$source), 0, 1)
+str(dat3)
 library(caret)
 set.seed(12345)
-test_i <- createDataPartition(y=dat2$source, times = 1, p = .33)$Resample1
-test <-  dat2[train_i,]
-train_hold <- dat2[-test_i,]
+test_i <- createDataPartition(y=dat3$source, times = 1, p = .33)$Resample1
+test <-  dat3[train_i,]
+train_hold <- dat3[-test_i,]
 train_i <- createDataPartition(y=train_hold$source, times = 1, p = .5)$Resample1
-train <- train_hold[train_i, ]
-hold <- train_hold[-train_i, ]
+traindf <- train_hold[train_i, ]
+holddf <- train_hold[-train_i, ]
   
 
 control <- trainControl(method="repeatedcv", number=10, repeats=3)
 metric <- "Accuracy"
-mtry <- sqrt(ncol(train))
+mtry <- sqrt(ncol(traindf))
 tunegrid <- expand.grid(.mtry=mtry)
-rf_default <- train(source~., data=train, method="rf", metric=metric, tuneGrid=tunegrid, trControl=control)
+rf_default <- train()
+  source~., 
+  data=traindf,
+  method="rf",
+  metric=metric, 
+  tuneGrid=tunegrid, 
+  trControl=control)
 print(rf_default)
 
 
