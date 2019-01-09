@@ -59,6 +59,20 @@ file.copy(from = "./casjen2003.xlsx", to="./casjen2003_newloci.xlsx", overwrite 
 #write.table(dat, file="annotated.csv", sep=",", row.names = F)
 ```
 
+Next I had the enviable jot of going entry by entry, and trying to find the annotated phage region's coords now that the locus tags are different.  In practice, this meant finding the first and last listed locus tags (or the next one, if the first could not be found), and entering in the start or end coord, respectively.
+
+Occasionally (such as for E. coli EDL933) I would have to get the RefSeq (GCA) version of the Genbank (GCF) version had the wrong locus tags.
+
+Escherichia coli O157:H7 EDL933 appeared to be using locus tag nomencalture from another organisms, so I had to skip that one.  Genes that were from the same operon had locus tags scattered in distant parts of this genome.
+
+I was unable to match annotations for the following organisms:
+- Escherichia coli O157:H7 EDL933
+- Mesorhizobium loti     MAFF303099
+
+In instances of just single genes annotated, I just took the first one's start and end coords; we will ignore these
+
+
+
 This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
 
 When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
