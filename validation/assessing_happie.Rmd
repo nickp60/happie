@@ -11,7 +11,7 @@ setwd("GitHub/happie/validation/")
 library(tidyverse)
 ```
 
-## DAta
+## Data
 
 We downloaded the word doc of the supplementary data fro Casjens 2013, and then transformated that into a slightly less terrible excel file.  This was difficult, as between 2003 and now, everything from gene names to taxonomy changed.  The original link to the repository at Venter is broken, and so I had to spend a fair amount of time manually combing the databases for likely strains. 
 
@@ -71,7 +71,28 @@ I was unable to match annotations for the following organisms:
 
 In instances of just single genes annotated, I just took the first one's start and end coords; we will ignore these
 
+In the meantime, I ran happie on all thos genomes, and prettied up the results, combining them into a single results file:
+```{sh}
+counter=0; 
+for i in ./genomes/*.gbk; do echo $counter $i; name=$(basename ${i%.*}); happie --contigs $i -o ${name}_casjens ; counter=$((counter+1)); done
+cat ./*/mobile_genome_coords >> combined_happie_coords
+```
 
+
+## evsaluating success
+
+```{r}
+happie_dat <- read.csv("combined_happie_coords", sep="\t", header = F, col.names = c("path", "program", "type", "sequence", "start", "stop"), stringsAsFactors = F)
+
+happie_dat$short_name <- gsub("\\/(.*?)\\/(.*?)\\/(.*?)\\/(.*?)\\/(.*?)\\/(.*?)\\/(.*)", "\\6", happie_dat$path)
+happie_dat$short_name <- gsub("_casjens", "", happie_dat$short_name)
+
+new_dat <- readxl::read_xlsx("./casjen2003_newloci.xlsx", sheet = 2)
+new_dat <- new_dat %>% fill(host, ftp, assembly) 
+new_dat$short_name <- gsub("\\(", "", gsub("\\)", "", gsub(" ", "_", new_dat$host )))
+(new_dat$short_name %in% happie_dat$short_name)
+
+```
 
 This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
 
