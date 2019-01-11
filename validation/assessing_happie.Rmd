@@ -126,6 +126,32 @@ happie_dat$short_name[!(happie_dat$short_name %in% new_dat$short_name)]
 mdat <- merge(new_dat, happie_dat, by="short_name")
 ```
 
+Now, we have our data in.  We can assess 4 difference scenarios
+
+1. genomes with no phage, no phage detected
+2. genomes with no phage, phage detected
+3. genomes with phage, no phage detected
+4. genomes with phage, phage detected
+
+
+I realize I needed to have a column to add whether or not to include a row.  Theres a bunch of messy rows (single genes, or very unclear notes), so I went back and added a column to address this.
+
+the column has the following identifiers
+
+- intact:  metadata says its excisable, inducible, or filimenetous
+- intactish: usually described as X-like, meaning its similar to known family of prophage
+- partial: a phagey looking operon, but likely missing genes needed for function
+- fragments: one or more phage gene
+- remnants: degraded, but looks like an old phage
+- unknown: no annotation or annotation unclear
+
+
+
+```{r}
+mdat$to_score
+
+
+```
 
 
 
