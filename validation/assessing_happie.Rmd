@@ -67,7 +67,7 @@ Escherichia coli O157:H7 EDL933 appeared to be using locus tag nomencalture from
 
 I was unable to match annotations for the following organisms:
 - Escherichia coli O157:H7 EDL933
-- Mesorhizobium loti     MAFF303099
+- Mesorhizobium loti MAFF303099
 
 I found that the dash in Shewanella MR–1 needs to be changed to a real dash, to avoid errors with prokka.
 
@@ -78,6 +78,11 @@ In the meantime, I ran happie on all thos genomes, and prettied up the results, 
 counter=0; 
 for i in ./genomes/*.gbk; do echo $counter $i; name=$(basename ${i%.*}); happie --contigs $i -o ${name}_casjens ; counter=$((counter+1)); done
 cat ./*/mobile_genome_coords >> combined_happie_coords
+# edit -- removed loti, see above
+mv Mesorhizobium_loti_____MAFF303099_casjens/mobile_genome_coords Mesorhizobium_loti_____MAFF303099_casjens/ignored_mobile_genome_coords
+mv Escherichia_coli_O157\:H7_EDL933_casjens/mobile_genome_coords Escherichia_coli_O157\:H7_EDL933_casjens/ignored_mobile_genome_coords
+rm combined_happie_coords; cat ./*/mobile_genome_coords >> combined_happie_coords
+
 ```
 
 
@@ -91,24 +96,26 @@ happie_dat_raw <- read.csv("combined_happie_coords", sep="\t", header = F, col.n
 #
 # for i in ./*/; do if [ ! -s "${i}mobile_genome_coords" ]; then echo $i; fi done
 #
-missing <- c(
+missing_include <- c(
   "Buchnera_aphidicola_Ap_casjens/",
   "Buchnera_aphidicola_Bp_casjens/",
   "Buchnera_aphidicola_Sg_casjens/",
+  "Mycoplasma_genitalium_G-37_casjens/",
+  "Mycoplasma_pneumoniae_M129_casjens/")
+missing_exclude <- c(
   "Chlamydia_pneumoniae__J139_casjens/",
   "Chlamydia_trachomatis__serovar_D_casjens/",
   "Escherichia_coli_O157_VT-2_Sakai_casjens/",
-  "Mycoplasma_genitalium_G-37_casjens/",
-  "Mycoplasma_pneumoniae_M129_casjens/",
+  "Mesorhizobium_loti_____MAFF303099",
   "Xanthomonas_axonopodis__903_casjens/")
 # add missing directory
-tmp <-data.frame(
-  path=paste0("/home/1/2/3/4/", missing),  
-  program=rep(NA, length(missing)),
-  type=rep(NA, length(missing)),
-  sequence=rep(NA, length(missing)),
-  start=rep(NA, length(missing)),
-  stop=rep(NA, length(missing))
+tmp <- data.frame(
+  path=paste0("/home/1/2/3/4/", missing_include),  
+  program=rep(NA, length(missing_include)),
+  type=rep(NA, length(missing_include)),
+  sequence=rep(NA, length(missing_include)),
+  start=rep(NA, length(missing_include)),
+  stop=rep(NA, length(missing_include))
 )
 happie_dat <- rbind(happie_dat_raw, tmp)
 happie_dat$short_name <- gsub("\\/(.*?)\\/(.*?)\\/(.*?)\\/(.*?)\\/(.*?)\\/(.*?)\\/(.*)", "\\6", happie_dat$path)
@@ -116,8 +123,11 @@ happie_dat$short_name <- gsub("_casjens", "", happie_dat$short_name)
 
 
 new_dat <- readxl::read_xlsx("./casjen2003_newloci.xlsx", sheet = 2)
-new_dat <- new_dat %>% fill(host, ftp, assembly, seq) 
+# 
+new_dat <- new_dat %>% fill(host, ftp, assembly, seq, n) 
 new_dat$short_name <- gsub("\\(", "", gsub("\\)", "", gsub(" ", "_", new_dat$host )))
+# remove the genomes we couldnt use; this is done by default now
+# new_dat <- new_dat[!new_dat$short_name %in% missing_exclude,]
 # These is our check
 new_dat$short_name[!(new_dat$short_name %in% happie_dat$short_name)]
 happie_dat$short_name[!(happie_dat$short_name %in% new_dat$short_name)]
@@ -143,13 +153,40 @@ the column has the following identifiers
 - partial: a phagey looking operon, but likely missing genes needed for function
 - fragments: one or more phage gene
 - remnants: degraded, but looks like an old phage
+- plasmid: see Borellia genome; the authors thought plasmids would be good to include for that one
+- na: data missing altogether, either could access the genome or couldnt relate given locus tags to it.
 - unknown: no annotation or annotation unclear
+- missing: phages identified with happie but not in original work
 
 
+I also reformated the "missing" column to be new rows for each entry.
+
+Ugh, this is getting messier by the minute.  Onward into the gap!
 
 ```{r}
-mdat$to_score
+new_dat <- new_dat %>% group_by(short_name) %>%
+  mutate(
+    result = ifelse(
+      (status %in% c("remnants", "partial", "intact", "intactish") & !id %in% c("na")) , 
+      "True Positives",
+      ifelse(
+        (status %in% c("na") & id %in% c("na")),
+        "True Negatives",
+        ifelse(
+          (status %in% c("remnants", "partial", "intact", "intactish") & id %in% c("na")),
+          "False Negatives",
+          ifelse(
+            status %in% c("missing"),
+            "False Positives / New Phages",
+            "Unclear")
+        )
+      )
+    )
+  ) 
 
+ggplot(new_dat, aes(x=status)) + geom_histogram(stat="count") + coord_flip()
+ggplot(new_dat, aes(x=id)) + geom_histogram(stat="count") + coord_flip()
+ggplot(new_dat, aes(x=result, fill=result)) + geom_histogram(stat="count") + coord_flip() +scale_fill_discrete(guide=F)
 
 ```
 
