@@ -4,32 +4,32 @@ if(!require(devtools)) install.packages("devtools")
 if(!require(ggpubr)) devtools::install_github("kassambara/ggpubr")
 library(ggpubr)
 
-classes <- read.csv("https://bitbucket.org/genomicepidemiology/resfinder_db/raw/fc516c662c9e535f8cc3022c43891fa9f80dc537/notes.txt", header=F, stringsAsFactors = F)
-classes_df <- data.frame("class"=character(), "name"=character(), stringsAsFactors = F)
-class = NA
-for (i in 1:nrow(classes)){
-  t <- classes[i, 1]
-  if (startsWith(t, "#")){
-    class = gsub("#", "", t)
-  } else {
-    tmp <- data.frame("class"=class, "name"=t)
-    classes_df <- rbind(classes_df, tmp)
-  }
-} 
-classes_df <- classes_df %>% separate(name, into = c("GENE", "res", "note"), sep = ":")
-# get rid of annoying leading white space
-classes_df$GENE <- as.character(classes_df$GENE)
-classes_df$GENE <-  gsub("^[ \\(\\)]*", "", classes_df$GENE)
-
-dat <- read.csv2("~/Desktop/2018-12-02_happie_resfinder.tab", sep="\t", header = F, comment.char = "#", stringsAsFactors = F)
-headers <- c("FILE", "SEQUENCE", "START", "END", "GENE", "COVERAGE", "COVERAGE_MAP", "GAPS", "PERCCOVERAGE", "PERCIDENTITY", "DATABASE", "ACCESSION", "PRODUCT")
-colnames(dat) <- headers
-
-
-ggplot(dat2, aes(x=class)) + geom_histogram(stat="count") + coord_flip() + scale_y_log10()
-
-ggplot(dat_sum, aes(x=n)) + geom_histogram(stat="count") + coord_flip()
-
+# classes <- read.csv("https://bitbucket.org/genomicepidemiology/resfinder_db/raw/fc516c662c9e535f8cc3022c43891fa9f80dc537/notes.txt", header=F, stringsAsFactors = F)
+# classes_df <- data.frame("class"=character(), "name"=character(), stringsAsFactors = F)
+# class = NA
+# for (i in 1:nrow(classes)){
+#   t <- classes[i, 1]
+#   if (startsWith(t, "#")){
+#     class = gsub("#", "", t)
+#   } else {
+#     tmp <- data.frame("class"=class, "name"=t)
+#     classes_df <- rbind(classes_df, tmp)
+#   }
+# } 
+# classes_df <- classes_df %>% separate(name, into = c("GENE", "res", "note"), sep = ":")
+# # get rid of annoying leading white space
+# classes_df$GENE <- as.character(classes_df$GENE)
+# classes_df$GENE <-  gsub("^[ \\(\\)]*", "", classes_df$GENE)
+# 
+# dat <- read.csv2("~/GitHub/FB/Ecoli_comparative_genomics/results/2018-12-02_happie_resfinder.tab", sep="\t", header = F, comment.char = "#", stringsAsFactors = F)
+# headers <- c("FILE", "SEQUENCE", "START", "END", "GENE", "COVERAGE", "COVERAGE_MAP", "GAPS", "PERCCOVERAGE", "PERCIDENTITY", "DATABASE", "ACCESSION", "PRODUCT")
+# colnames(dat) <- headers
+# 
+# 
+# ggplot(dat2, aes(x=class)) + geom_histogram(stat="count") + coord_flip() + scale_y_log10()
+# 
+# ggplot(dat_sum, aes(x=n)) + geom_histogram(stat="count") + coord_flip()
+# 
 
 #####################
 mobile <- read.csv2("~/GitHub/happie/2018-12-04-happie-mobile-coords", header = F, sep = "\t", stringsAsFactors = F)
@@ -37,9 +37,13 @@ mobilenames <- c("path", "tool", "feature", "contig", "start", "end")
 colnames(mobile) <- mobilenames
 mobile$source <- ifelse(grepl("Lys", mobile$path), "soil", "clinical")
 
-headers <- c("path", "SEQUENCE", "START", "END", "GENE", "COVERAGE", "COVERAGE_MAP", "GAPS", "PERCCOVERAGE", "PERCIDENTITY", "DATABASE", "ACCESSION", "PRODUCT")
+abheaders <- c("path", "SEQUENCE", "START", "END", "GENE", "COVERAGE", "COVERAGE_MAP", "GAPS", "PERCCOVERAGE", "PERCIDENTITY", "DATABASE", "ACCESSION", "PRODUCT")
 abricate <- read.csv2("~/GitHub/happie/2018-12-04-happie-abricate", header = F, sep = "\t", comment.char = "#", stringsAsFactors = F)
-colnames(abricate) <- headers
+colnames(abricate) <- abheaders
+abricate$short_name <- gsub(".fasta", "", gsub("\\/(.*?)\\/(.*?)\\/(.*?)\\/(.*?)\\/(.*)", "\\4", abricate$path))
+
+table(abricate$DATABASE)
+
 abricate$source <- ifelse(grepl("Lys", abricate$path), "soil", "clinical")
 
 dat <- abricate[abricate$DATABASE=="resfinder", ]
@@ -50,13 +54,14 @@ su <- mobile %>%
   summarise(n=n()) %>%
   as.data.frame()
   
-ggplot(su, aes(x=feature, y=n, fill=source)) +
-  geom_boxplot() + stat_compare_means(n ~ feature+source)
+# ggplot(su, aes(x=feature, y=n, fill=source)) +
+#   geom_boxplot() + stat_compare_means(n ~ feature+source)
 
 ggboxplot(su, x = "source", y = "n",
           color = "source", palette = "jco", facet.by = "feature")+ 
 #  stat_compare_means(label.y = c(29, 35, 40))+
   stat_compare_means(label.y = 45)
+
 for (i in c("prophages")){
   print(t.test(
     su[su$source=="soil" & su$feature==i, "n"], 
@@ -78,44 +83,50 @@ for (i in 1:nrow(classes)){
   }
 } 
 classes_df <- classes_df %>% separate(name, into = c("GENE", "res", "note"), sep = ":")
-
 # make a simplified genome column, making everything lowercase, removing everything after the first bit
 classes_df$gene <- sapply(strsplit(gsub(" ", "", gsub("\\(", "", gsub("\\)", "", classes_df$GENE))), "\\, |\\,| |\\-|1|2|3|4|5|6|7|8|9|0|_"), function(x){x[[1]]})
+# drop complex gene names
+classes_df <- classes_df[, !colnames(classes_df) %in% c("GENE", "note")]
+classes_df <- classes_df[!duplicated(classes_df), ]
+
 dat$gene <- sapply(strsplit(gsub(" ", "", gsub("\\(", "", gsub("\\)", "", dat$GENE))), "\\, |\\,| |\\-|1|2|3|4|5|6|7|8|9|0|_"), function(x){x[[1]]})
 
 str(classes_df$gene)
 str(dat$gene)
 table(dat$gene %in% classes_df$gene)
 dat$gene[!dat$gene %in% classes_df$gene]
-
 dat2 <- left_join(dat, classes_df, by="gene")
-
 dat2 <- dat2 %>%
   group_by(source) %>%
   mutate(nsource=n()) %>%
   group_by(source, class) %>%
   mutate(n=n(), perc= n/nsource * 100) %>% as.data.frame()
 
-ggplot(dat2, aes(x=gene, y=path)) + geom_tile()
-ggplot(dat2, aes(x=class, y=perc, group=source) )+
+
+ggplot(dat2, aes(x=gene, y=short_name)) + geom_tile()
+ggplot(dat2, aes(x=class, y=perc, group=source))+
   #geom_boxplot()+
   geom_point() + 
   coord_flip() + scale_y_log10()
+ggplot(dat2, aes(x=class, y=perc, color=source, group=interaction(source, class)))+
+  geom_boxplot()+
+  geom_point() + 
+  coord_flip() + scale_y_log10()
 
-dat3 <- dat2[!duplicated(dat2[, c("source", "class")]), c("source", "class", "perc")]
-t.test(dat)
+# dat3 <- dat2[!duplicated(dat2[, c("source", "class")]), c("source", "class", "perc")]
+# t.test(dat)
 
 
 #install.packages("caret")  
-dat3 <-dat2[, c("source", "GENE.x")]
-dat3$GENE.x <- as.numeric(as.factor(dat3$GENE.x))
-dat3$source <- ifelse(grepl("clinical", dat3$source), 0, 1)
-str(dat3)
+dat3 <-dat2[!duplicated(dat2[,c("short_name", "source", "class")]), c("short_name", "source", "class")]
+wd3 <- dat3 %>% group_by(short_name, class) %>% mutate(classn=n()) %>% ungroup() %>% spread_(key_col = "class", value_col="classn", fill=0) %>% select(-short_name)
+wd3$source <- ifelse(grepl("clinical", wd3$source), 0, 1)
+str(wd3)
 library(caret)
 set.seed(12345)
-test_i <- createDataPartition(y=dat3$source, times = 1, p = .33)$Resample1
-test <-  dat3[train_i,]
-train_hold <- dat3[-test_i,]
+test_i <- createDataPartition(y=wd3$source, times = 1, p = .33)$Resample1
+test <-  wd3[train_i,]
+train_hold <- wd3[-test_i,]
 train_i <- createDataPartition(y=train_hold$source, times = 1, p = .5)$Resample1
 traindf <- train_hold[train_i, ]
 holddf <- train_hold[-train_i, ]
@@ -125,14 +136,159 @@ control <- trainControl(method="repeatedcv", number=10, repeats=3)
 metric <- "Accuracy"
 mtry <- sqrt(ncol(traindf))
 tunegrid <- expand.grid(.mtry=mtry)
-rf_default <- train()
-  source~., 
-  data=traindf,
-  method="rf",
-  metric=metric, 
-  tuneGrid=tunegrid, 
-  trControl=control)
-print(rf_default)
+# rf_default <- train(
+#   source~., 
+#   data=traindf,
+#   method="rf")
+# print(rf_default)
+
+ctrl <- 
+  trainControl(
+    method = "repeatedcv", 
+    number = 10,
+    repeats = 5,
+    classProbs = F,
+    summaryFunction = twoClassSummary)
+
+    train(source ~ .,
+          data=traindf,
+          method = "glm",
+          family = "binomial",
+          metric = "ROC",
+          trControl = ctrl)
 
 
 
+glm_1 <- train(source~., method="glmboost", data=traindf)
+
+summary(glm_1$finalModel)
+
+
+########################  VF
+raw_vf <- abricate[abricate$DATABASE!="resfinder", c("short_name", "source", "GENE", "PRODUCT")]
+# get keywords
+#download.file("http://www.mgc.ac.cn/VFs/Down/VFs.xls.gz", "./VFs.xls.gz")
+#system("gunzip VFs.xls.gz")
+# cant seem to read in the xl file directly; open, export as csv
+# desc_file <- readxl::read_excel(path = "./VFs.xls", sheet = 1, skip = 1)
+desc_file <- read.csv("~/GitHub/happie/validation/VFs.csv", skip = 1, stringsAsFactors = F)
+desc_file <- desc_file[, c("Keyword", "VFID")]
+
+# not all these have matches, cause the E. coli ones dont have VF ids
+raw_vf$id <- gsub(".*(VF....).*", "\\1", raw_vf$PRODUCT)
+vf_with_match <- left_join(raw_vf[grepl("VF...", raw_vf$id), ], desc_file, by = c("id" = "VFID"))
+vf_no_match <- raw_vf[!grepl("VF...", raw_vf$id), ]
+vf_no_match$id <- NA
+vf_no_match<- vf_no_match %>% 
+  mutate(
+    Keyword = 
+      case_when(
+        grepl("fimbria", vf_no_match$PRODUCT, ignore.case = T) ~ "Adherence",
+        grepl("Type III secretion", vf_no_match$PRODUCT, ignore.case = T) ~ "Secretion; Type III secretion",
+        grepl("T3SS", vf_no_match$PRODUCT, ignore.case = T) ~ "Secretion; Type III secretion",
+        grepl("esterase", vf_no_match$PRODUCT, ignore.case = T) ~ "Metabolic adaptation",
+        grepl("ATP binding cassette", vf_no_match$PRODUCT, ignore.case = T) ~ "ATP transporter",
+        grepl("glucosyltransferase", vf_no_match$PRODUCT, ignore.case = T) ~ "Toxin; Intracellular toxin; Glucosyltransferase
+",
+        grepl("colinisation", vf_no_match$PRODUCT, ignore.case = T) ~ "Adherence; Type IV pili",
+        grepl("Chaperone", vf_no_match$PRODUCT, ignore.case = T) ~ "Intracellular growth; Protein folding",
+        grepl("negative regulator", vf_no_match$PRODUCT, ignore.case = T) ~ "Regulation",
+        grepl("chemotaxis", vf_no_match$PRODUCT, ignore.case = T) ~ "Adherence",
+        grepl("coli surface antigen", vf_no_match$PRODUCT, ignore.case = T) ~ "Adherence",
+        TRUE ~ "unknown"
+      )
+  )
+  
+vf <- rbind(vf_with_match, vf_no_match)
+vf$gene<-vf$Keyword
+vf <- vf %>% select(-PRODUCT, -id, -GENE, -Keyword)
+# get categories
+# cats <- c()
+# for (i in 1:nrow(desc_file)){
+#   cats <- c(cats, strsplit(x = desc_file[i, "Keyword"], split=";")[[1]])
+# }
+# cats <- gsub("^ ", "", cats) #remove leading zeros
+# cats[unique(cats)]
+# 
+# vf_desc <- data.frame("class"=character(), "gene"=character(), "count"=numeric(),stringsAsFactors = F)
+# 
+# for (i in 1:nrow(desc_file)){
+#   words <- gsub("^ ", "", strsplit(x = desc_file[i, "Keyword"], split=";")[[1]])
+#   for (word in words){
+#     vf_desc[gene, word]
+#   }
+#     
+#   cats <- c(cats, strsplit(x = desc_file[i, "Keyword"], split=";")[[1]])
+# }
+# 
+
+
+
+# simplify gene
+#vf$gene <- gsub("(.*?)[\\/-].*", "\\1", vf$GENE)
+#vf <-vf[!duplicated(vf), colnames(vf)!="GENE"]
+
+vf <- vf %>% group_by(short_name, gene)%>% mutate(genen=n()) 
+vf <- vf[!duplicated(vf),] %>% as.data.frame()
+words <- c()
+for (i in 1:nrow(vf)){
+  words <- c(words, gsub("^ ", "", strsplit(x = desc_file[i, "Keyword"], split=";")[[1]]))
+}
+words <- unique(words)
+nisolates <- length(unique(vf$short_name))
+vf_desc <- data.frame("short_name"=unique(vf$short_name), "source"=character(nisolates))
+for (j in  1:nrow(vf)){
+  thesewords <- gsub("^ ", "", strsplit(x = vf[j, "gene"], split=";")[[1]])
+  if (any(is.na(thesewords))){
+    print(paste("skipping", thesewords))
+  } else {
+    for (word in thesewords){
+      if (!word %in% colnames(vf_desc)){
+        vf_desc[, word] <- 0
+      }
+      vf_desc[vf_desc$short_name== vf$short_name[j], word] = vf_desc[vf_desc$short_name== vf$short_name[j], word] + 1
+    }
+  }
+}
+
+
+
+#vfs <- vf %>% spread(key = gene, value=genen, fill=0) %>% as.data.frame()
+rownames(vf_desc) <- vf_desc$short_name
+vfs <- vf_desc %>% select(-short_name)
+vfs$source<- as.factor(ifelse(grepl("Lys", rownames(vfs)), "soil", "clinical"))
+#vfs$source <- ifelse(grepl("clinical", vfs$source), 0, 1)
+#vfs$source <- ifelse(grepl("clinical", vfs$source), 0, 1)
+str(vfs)
+library(caret)
+vfs$source<- as.factor(vfs$source)
+set.seed(12345)
+test_i <- createDataPartition(y=vfs$source, times = 1, p = .33)$Resample1
+testdf <-  vfs[test_i,]
+train_hold <- vfs[-test_i,]
+train_i <- createDataPartition(y=train_hold$source, times = 1, p = .5)$Resample1
+traindf <- train_hold[train_i, ]
+holddf <- train_hold[-train_i, ]
+
+
+control <- trainControl(method="repeatedcv", number=10, repeats=3)
+metric <- "Accuracy"
+mtry <- sqrt(ncol(traindf))
+tunegrid <- expand.grid(.mtry=mtry)
+
+ctrl <- 
+  trainControl(
+    method = "repeatedcv", 
+    number = 10,
+    repeats = 5,
+    classProbs = T,
+    summaryFunction = twoClassSummary)
+
+fit <- train(source~.,
+      data=traindf,
+      method = "glm",
+      family = "binomial",
+      metric = "ROC",
+      trControl = ctrl)
+
+confusionMatrix(predict(fit, testdf), testdf$source)
