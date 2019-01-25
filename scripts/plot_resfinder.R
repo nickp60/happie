@@ -3,6 +3,29 @@ if(!require(devtools)) install.packages("devtools")
 if(!require(ggpubr)) devtools::install_github("kassambara/ggpubr")
 library(ggpubr)
 library(caret)
+########################  Putting the "fun" in "functions" ############
+remove_linear_combos <- function(df, ignor) {
+  outcomes <- df[, ignor]
+  dat = df %>%
+    select(- ignor) %>%
+    select(-)
+    select(-findLinearCombos(.)$remove)
+  dat[, ignor] = outcomes
+  return(dat)
+}
+make_partitioned_df <- function(df, interest, p1=.33, p2=.5){
+  train_i <- createDataPartition(y=df[, interest], times = 1, p = p2)$Resample1
+  traindf <- df[train_i, ]
+  traindf$partition <- "train"
+  test_hold <- df[-train_i, ]
+  test_i <- createDataPartition(y=test_hold[, interest], times = 1, p = p1)$Resample1
+  testdf <-  test_hold[test_i, ]
+  testdf$partition <- "test"
+  holddf <- test_hold[-test_i, , ]
+  holddf$partition <- "holdout"
+  return(rbind(traindf, testdf, holddf))
+}
+
 
 
 # classes <- read.csv("https://bitbucket.org/genomicepidemiology/resfinder_db/raw/fc516c662c9e535f8cc3022c43891fa9f80dc537/notes.txt", header=F, stringsAsFactors = F)
@@ -214,28 +237,8 @@ vfs <- vfs %>% select(-short_name)
 #vfs$source <- ifelse(grepl("clinical", vfs$source), 0, 1)
 str(vfs)
 
-remove_linear_combos <- function(df, ignor) {
-  outcomes <- df[, ignor]
-  dat = df %>%
-    select(- ignor) %>%
-    select(-findLinearCombos(.)$remove)
-  dat[, ignor] = outcomes
-  return(dat)
-}
 set.seed(12345)
 vfs_trim <-vfs %>% do(remove_linear_combos(., "source"))
-make_partitioned_df <- function(df, interest, p1=.33, p2=.5){
-  train_i <- createDataPartition(y=df[, interest], times = 1, p = p2)$Resample1
-  traindf <- df[train_i, ]
-  traindf$partition <- "train"
-  test_hold <- df[-train_i, ]
-  test_i <- createDataPartition(y=test_hold[, interest], times = 1, p = p1)$Resample1
-  testdf <-  test_hold[test_i, ]
-  testdf$partition <- "test"
-  holddf <- test_hold[-test_i, , ]
-  holddf$partition <- "holdout"
-  return(rbind(traindf, testdf, holddf))
-}
 mlvf <- make_partitioned_df(df=vfs_trim, interest="source", p1=.33, p2=.5)
 
 metric <- "Accuracy"
@@ -278,28 +281,45 @@ pg_raw <- read.table("~/GitHub/FB/Ecoli_comparative_genomics/results/2018-12-05-
 str(pg_raw)
 #pg_raw <- read.csv("~/GitHub/FB/Ecoli_comparative_genomics/results/2018-12-05-happie-roary/2018-12-05-roary/gene_presence_absence.csv")
 #pg <-pg_raw[,c(1, 15:ncol(pg_raw))]
-pg <- pg_raw %>%
+
+#  Fitting right away leeps crashing, so lets thin the data by removing singletons and dupletons
+pg <-  pg_raw %>% mutate(n=rowSums(pg_raw %>% select(-Gene))) %>%filter(n > 2) %>% select(-n)
+
+pg <- pg %>%
   #head() %>%
   gather("strain", "present", 2:ncol(.)) %>%
   spread(Gene, present) %>%
-  mutate(source = ifelse(grepl("Lys", strain), 1, 0))#%>% View()
+  mutate(source = ifelse(grepl("Lys", strain), 1, 0)) #%>% View()
 mlpg <- make_partitioned_df(df=pg, interest="source", p1=.33, p2=.5)
+#findLinearCombos(pg %>% select(-strain, -source))
 
-
+ctrl <- 
+  trainControl(
+    method = "repeatedcv", 
+    number = 10,
+    repeats = 5,
+    classProbs = T,
+    summaryFunction = twoClassSummary)
+thisdata=mlpg %>% 
+  filter(partition=="train") %>% 
+  select(-partition) %>%
+  select(-strain) %>% do(remove_linear_combos(., ignor = "source"))
 pgfit <- train(source~.,
-             data=mlpg %>% 
-               filter(partition=="train") %>% 
-               select(-partition) %>%
-               do(remove_linear_combos(., "source")),
-             method = "rf",
-             family = "binomial",
+             data=thisdata%>% transform(source=factor(source, labels=c("clinical", "soil"))),
+             method = "rpart",
+             #family = "binomial",
              metric = "ROC",
              trControl = ctrl)
-
-confusionMatrix(predict(fit, 
-                        mlvf %>% filter(partition=="test") %>% 
+summary(pgfit)
+pgfit$finalModel
+confusionMatrix(predict(pgfit, 
+                        mlpg %>% filter(partition=="test") %>% 
                           select(-partition)), 
                 mlvf[mlvf$partition=="test", "source"])
 
+rcfit <- rpart::rpart(source~., data = thisdata, method = "class")
+summary(rcfit)
+plot(rcfit )
+text(rcfit, use.n = TRUE)
 
 
