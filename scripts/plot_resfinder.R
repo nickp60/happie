@@ -1,8 +1,9 @@
-library(ggplot2)
 library(tidyverse)
 if(!require(devtools)) install.packages("devtools")
 if(!require(ggpubr)) devtools::install_github("kassambara/ggpubr")
 library(ggpubr)
+library(caret)
+
 
 # classes <- read.csv("https://bitbucket.org/genomicepidemiology/resfinder_db/raw/fc516c662c9e535f8cc3022c43891fa9f80dc537/notes.txt", header=F, stringsAsFactors = F)
 # classes_df <- data.frame("class"=character(), "name"=character(), stringsAsFactors = F)
@@ -32,21 +33,23 @@ library(ggpubr)
 # 
 
 #####################
-mobile <- read.csv2("~/GitHub/happie/2018-12-04-happie-mobile-coords", header = F, sep = "\t", stringsAsFactors = F)
-mobilenames <- c("path", "tool", "feature", "contig", "start", "end")
-colnames(mobile) <- mobilenames
+mobile <- read.csv2("~/GitHub/happie/2018-12-04-happie-mobile-coords", header = F, 
+                    sep = "\t", stringsAsFactors = F, 
+                    col.names =  c("path", "tool", "feature", "contig", "start", "end"))
 mobile$source <- ifelse(grepl("Lys", mobile$path), "soil", "clinical")
 
 abheaders <- c("path", "SEQUENCE", "START", "END", "GENE", "COVERAGE", "COVERAGE_MAP", "GAPS", "PERCCOVERAGE", "PERCIDENTITY", "DATABASE", "ACCESSION", "PRODUCT")
-abricate <- read.csv2("~/GitHub/happie/2018-12-04-happie-abricate", header = F, sep = "\t", comment.char = "#", stringsAsFactors = F)
-colnames(abricate) <- abheaders
-abricate$short_name <- gsub(".fasta", "", gsub("\\/(.*?)\\/(.*?)\\/(.*?)\\/(.*?)\\/(.*)", "\\4", abricate$path))
+abricate <- read.csv2("~/GitHub/happie/2018-12-04-happie-abricate", header = F, 
+                      sep = "\t", comment.char = "#", stringsAsFactors = F,
+                      col.names = abheaders)
+abricate$short_name <- gsub(".fasta", "", 
+                            gsub("\\/(.*?)\\/(.*?)\\/(.*?)\\/(.*?)\\/(.*)", "\\4", abricate$path))
 
 table(abricate$DATABASE)
 
 abricate$source <- ifelse(grepl("Lys", abricate$path), "soil", "clinical")
 
-dat <- abricate[abricate$DATABASE=="resfinder", ]
+dat <- abricate %>% filter(DATABASE=="resfinder")
 
 
 su <- mobile %>% 
@@ -54,9 +57,6 @@ su <- mobile %>%
   summarise(n=n()) %>%
   as.data.frame()
   
-# ggplot(su, aes(x=feature, y=n, fill=source)) +
-#   geom_boxplot() + stat_compare_means(n ~ feature+source)
-
 ggboxplot(su, x = "source", y = "n",
           color = "source", palette = "jco", facet.by = "feature")+ 
 #  stat_compare_means(label.y = c(29, 35, 40))+
@@ -83,11 +83,10 @@ for (i in 1:nrow(classes)){
   }
 } 
 classes_df <- classes_df %>% separate(name, into = c("GENE", "res", "note"), sep = ":")
-# make a simplified genome column, making everything lowercase, removing everything after the first bit
+# make a simplified gene column, making everything lowercase, removing everything after the first bit
 classes_df$gene <- sapply(strsplit(gsub(" ", "", gsub("\\(", "", gsub("\\)", "", classes_df$GENE))), "\\, |\\,| |\\-|1|2|3|4|5|6|7|8|9|0|_"), function(x){x[[1]]})
 # drop complex gene names
-classes_df <- classes_df[, !colnames(classes_df) %in% c("GENE", "note")]
-classes_df <- classes_df[!duplicated(classes_df), ]
+classes_df <- classes_df %>% select(-GENE, -note) %>% distinct()
 
 dat$gene <- sapply(strsplit(gsub(" ", "", gsub("\\(", "", gsub("\\)", "", dat$GENE))), "\\, |\\,| |\\-|1|2|3|4|5|6|7|8|9|0|_"), function(x){x[[1]]})
 
@@ -102,30 +101,27 @@ dat2 <- dat2 %>%
   group_by(source, class) %>%
   mutate(n=n(), perc= n/nsource * 100) %>% as.data.frame()
 
+ggplot(dat2, aes(x=source)) + geom_histogram(stat="count") + labs(title="total AMR hits")
+ggplot(dat2 %>% distinct(path, source), aes(x=source)) + geom_histogram(stat="count")  + labs(title="Organisms with AMR hits")
+ggplot(dat2, aes(x=gene, y=short_name)) + geom_tile() + labs(title="AMR heatmap")
+# ggplot(dat2, aes(x=class, y=perc, group=source))+
+#   geom_point() + 
+#   coord_flip() + scale_y_log10()
+# ggplot(dat2, aes(x=class, y=perc, color=source, group=interaction(source, class)))+
+#   geom_boxplot()+
+#   geom_point() + 
+#   coord_flip() + scale_y_log10()
 
-ggplot(dat2, aes(x=gene, y=short_name)) + geom_tile()
-ggplot(dat2, aes(x=class, y=perc, group=source))+
-  #geom_boxplot()+
-  geom_point() + 
-  coord_flip() + scale_y_log10()
-ggplot(dat2, aes(x=class, y=perc, color=source, group=interaction(source, class)))+
-  geom_boxplot()+
-  geom_point() + 
-  coord_flip() + scale_y_log10()
-
-# dat3 <- dat2[!duplicated(dat2[, c("source", "class")]), c("source", "class", "perc")]
-# t.test(dat)
 
 
 #install.packages("caret")  
-dat3 <-dat2[!duplicated(dat2[,c("short_name", "source", "class")]), c("short_name", "source", "class")]
+dat3 <-dat2 %>% select(short_name, source, class) %>% distinct()
 wd3 <- dat3 %>% group_by(short_name, class) %>% mutate(classn=n()) %>% ungroup() %>% spread_(key_col = "class", value_col="classn", fill=0) %>% select(-short_name)
 wd3$source <- ifelse(grepl("clinical", wd3$source), 0, 1)
 str(wd3)
-library(caret)
 set.seed(12345)
 test_i <- createDataPartition(y=wd3$source, times = 1, p = .33)$Resample1
-test <-  wd3[train_i,]
+test <-  wd3[test_i,]
 train_hold <- wd3[-test_i,]
 train_i <- createDataPartition(y=train_hold$source, times = 1, p = .5)$Resample1
 traindf <- train_hold[train_i, ]
@@ -149,30 +145,27 @@ ctrl <-
     repeats = 5,
     classProbs = F,
     summaryFunction = twoClassSummary)
-
-    train(source ~ .,
-          data=traindf,
-          method = "glm",
-          family = "binomial",
-          metric = "ROC",
-          trControl = ctrl)
-
-
-
+# this fails -- we dont have enough positive hits for out soil saples
+train(source ~ .,
+      data=traindf,
+      method = "fr",
+      family = "binomial",
+      metric = "ROC",
+      trControl = ctrl)
 glm_1 <- train(source~., method="glmboost", data=traindf)
 
 summary(glm_1$finalModel)
 
 
 ########################  VF
-raw_vf <- abricate[abricate$DATABASE!="resfinder", c("short_name", "source", "GENE", "PRODUCT")]
+raw_vf <- abricate %>% filter(DATABASE =="vfdb") %>% select_("short_name", "source", "GENE", "PRODUCT")
 # get keywords
 #download.file("http://www.mgc.ac.cn/VFs/Down/VFs.xls.gz", "./VFs.xls.gz")
 #system("gunzip VFs.xls.gz")
 # cant seem to read in the xl file directly; open, export as csv
 # desc_file <- readxl::read_excel(path = "./VFs.xls", sheet = 1, skip = 1)
-desc_file <- read.csv("~/GitHub/happie/validation/VFs.csv", skip = 1, stringsAsFactors = F)
-desc_file <- desc_file[, c("Keyword", "VFID")]
+desc_file <- read.csv("~/GitHub/happie/validation/VFs.csv", skip = 1, stringsAsFactors = F) %>% 
+  select_("Keyword", "VFID")
 
 # not all these have matches, cause the E. coli ones dont have VF ids
 raw_vf$id <- gsub(".*(VF....).*", "\\1", raw_vf$PRODUCT)
@@ -202,80 +195,52 @@ vf_no_match<- vf_no_match %>%
 vf <- rbind(vf_with_match, vf_no_match)
 vf$gene<-vf$Keyword
 vf <- vf %>% select(-PRODUCT, -id, -GENE, -Keyword)
-# get categories
-# cats <- c()
-# for (i in 1:nrow(desc_file)){
-#   cats <- c(cats, strsplit(x = desc_file[i, "Keyword"], split=";")[[1]])
-# }
-# cats <- gsub("^ ", "", cats) #remove leading zeros
-# cats[unique(cats)]
-# 
-# vf_desc <- data.frame("class"=character(), "gene"=character(), "count"=numeric(),stringsAsFactors = F)
-# 
-# for (i in 1:nrow(desc_file)){
-#   words <- gsub("^ ", "", strsplit(x = desc_file[i, "Keyword"], split=";")[[1]])
-#   for (word in words){
-#     vf_desc[gene, word]
-#   }
-#     
-#   cats <- c(cats, strsplit(x = desc_file[i, "Keyword"], split=";")[[1]])
-# }
-# 
-
-
 
 # simplify gene
 #vf$gene <- gsub("(.*?)[\\/-].*", "\\1", vf$GENE)
 #vf <-vf[!duplicated(vf), colnames(vf)!="GENE"]
 
-vf <- vf %>% group_by(short_name, gene)%>% mutate(genen=n()) 
-vf <- vf[!duplicated(vf),] %>% as.data.frame()
-words <- c()
-for (i in 1:nrow(vf)){
-  words <- c(words, gsub("^ ", "", strsplit(x = desc_file[i, "Keyword"], split=";")[[1]]))
-}
-words <- unique(words)
-nisolates <- length(unique(vf$short_name))
-vf_desc <- data.frame("short_name"=unique(vf$short_name), "source"=character(nisolates))
-for (j in  1:nrow(vf)){
-  thesewords <- gsub("^ ", "", strsplit(x = vf[j, "gene"], split=";")[[1]])
-  if (any(is.na(thesewords))){
-    print(paste("skipping", thesewords))
-  } else {
-    for (word in thesewords){
-      if (!word %in% colnames(vf_desc)){
-        vf_desc[, word] <- 0
-      }
-      vf_desc[vf_desc$short_name== vf$short_name[j], word] = vf_desc[vf_desc$short_name== vf$short_name[j], word] + 1
-    }
-  }
-}
+vf <- vf %>% group_by(short_name, gene)%>% mutate(genen=n()) %>% distinct()
+vfs <- vf %>% transform(gene = strsplit(gene, "; ")) %>% unnest(gene) %>% 
+  group_by(short_name, gene) %>% mutate(genet=sum(genen)) %>% 
+  distinct(short_name, source, gene, genet)  %>%
+  transform(source=as.factor(source)) %>%
+  spread(key = gene, value = genet, fill=0 ) %>% as.data.frame()
 
-
-
-#vfs <- vf %>% spread(key = gene, value=genen, fill=0) %>% as.data.frame()
-rownames(vf_desc) <- vf_desc$short_name
-vfs <- vf_desc %>% select(-short_name)
-vfs$source<- as.factor(ifelse(grepl("Lys", rownames(vfs)), "soil", "clinical"))
+rownames(vfs) <- vfs$short_name
+vfs <- vfs %>% select(-short_name)
+#vfs$source<- as.factor(ifelse(grepl("Lys", rownames(vfs)), "soil", "clinical"))
 #vfs$source <- ifelse(grepl("clinical", vfs$source), 0, 1)
 #vfs$source <- ifelse(grepl("clinical", vfs$source), 0, 1)
 str(vfs)
-library(caret)
-vfs$source<- as.factor(vfs$source)
+
+remove_linear_combos <- function(df, ignor) {
+  outcomes <- df[, ignor]
+  dat = df %>%
+    select(- ignor) %>%
+    select(-findLinearCombos(.)$remove)
+  dat[, ignor] = outcomes
+  return(dat)
+}
 set.seed(12345)
-test_i <- createDataPartition(y=vfs$source, times = 1, p = .33)$Resample1
-testdf <-  vfs[test_i,]
-train_hold <- vfs[-test_i,]
-train_i <- createDataPartition(y=train_hold$source, times = 1, p = .5)$Resample1
-traindf <- train_hold[train_i, ]
-holddf <- train_hold[-train_i, ]
+vfs_trim <-vfs %>% do(remove_linear_combos(., "source"))
+make_partitioned_df <- function(df, interest, p1=.33, p2=.5){
+  train_i <- createDataPartition(y=df[, interest], times = 1, p = p2)$Resample1
+  traindf <- df[train_i, ]
+  traindf$partition <- "train"
+  test_hold <- df[-train_i, ]
+  test_i <- createDataPartition(y=test_hold[, interest], times = 1, p = p1)$Resample1
+  testdf <-  test_hold[test_i, ]
+  testdf$partition <- "test"
+  holddf <- test_hold[-test_i, , ]
+  holddf$partition <- "holdout"
+  return(rbind(traindf, testdf, holddf))
+}
+mlvf <- make_partitioned_df(df=vfs_trim, interest="source", p1=.33, p2=.5)
 
-
-control <- trainControl(method="repeatedcv", number=10, repeats=3)
 metric <- "Accuracy"
 mtry <- sqrt(ncol(traindf))
 tunegrid <- expand.grid(.mtry=mtry)
-
 ctrl <- 
   trainControl(
     method = "repeatedcv", 
@@ -285,10 +250,56 @@ ctrl <-
     summaryFunction = twoClassSummary)
 
 fit <- train(source~.,
-      data=traindf,
-      method = "glm",
+      data=mlvf %>% 
+        filter(partition=="train") %>% 
+        select(-partition) %>%
+        do(remove_linear_combos(., "source")),
+      method = "rf",
       family = "binomial",
       metric = "ROC",
       trControl = ctrl)
 
-confusionMatrix(predict(fit, testdf), testdf$source)
+confusionMatrix(predict(fit, 
+                        mlvf %>% filter(partition=="test") %>% 
+                          select(-partition)), 
+                mlvf[mlvf$partition=="test", "source"])
+
+
+
+#################  plotting size of pangenomes
+mob <- mobile %>% group_by(path, feature) %>% mutate(size=sum(end-start)) %>% select(path, size, source, feature) %>% distinct()
+ggplot(mob, aes(x=source, y=size, fill=feature)) + geom_boxplot()
+
+
+#### ML on presence absense
+
+
+pg_raw <- read.table("~/GitHub/FB/Ecoli_comparative_genomics/results/2018-12-05-happie-roary/2018-12-05-roary/gene_presence_absence.Rtab", header = T)
+str(pg_raw)
+#pg_raw <- read.csv("~/GitHub/FB/Ecoli_comparative_genomics/results/2018-12-05-happie-roary/2018-12-05-roary/gene_presence_absence.csv")
+#pg <-pg_raw[,c(1, 15:ncol(pg_raw))]
+pg <- pg_raw %>%
+  #head() %>%
+  gather("strain", "present", 2:ncol(.)) %>%
+  spread(Gene, present) %>%
+  mutate(source = ifelse(grepl("Lys", strain), 1, 0))#%>% View()
+mlpg <- make_partitioned_df(df=pg, interest="source", p1=.33, p2=.5)
+
+
+pgfit <- train(source~.,
+             data=mlpg %>% 
+               filter(partition=="train") %>% 
+               select(-partition) %>%
+               do(remove_linear_combos(., "source")),
+             method = "rf",
+             family = "binomial",
+             metric = "ROC",
+             trControl = ctrl)
+
+confusionMatrix(predict(fit, 
+                        mlvf %>% filter(partition=="test") %>% 
+                          select(-partition)), 
+                mlvf[mlvf$partition=="test", "source"])
+
+
+
