@@ -1,5 +1,8 @@
 * Happie
-Happie is a wrapper for several independent programs used to identify different mobile elements.
+Happie is a wrapper for several independent programs used to identify different mobile elements.  It is designed to thrive on HPC environments taking advantage of either Docker or Singularity to containerize the different programs.
+ 
+
+
 
 ** Context independent Regions
 These regions are interesting in and of themselves for what genes they carry, etc
@@ -9,11 +12,12 @@ These regions are interesting in and of themselves for what genes they carry, et
 **** mlplasmids
 *** Genomic Islands
 **** CAFE
-** Context-dependedt Regions
-These regions are short, and are interestesitng solely because of their context
-*** Insertion Sequnes
-**** OASIS
+# ** Context-dependedt Regions
+# These regions are short, and are interestesitng solely because of their context
+# *** Insertion Sequnes
+# **** OASIS
 
+**** Islandpath DIMOB
 
 * Install
 
@@ -28,7 +32,7 @@ python setup.py install
 happy_install_or_update
 #+end_src
 
-That is going to take care of downloading Docker images for  [[link][ProphET]], [[link][prokka]], [[link][mlplasmids]], [[link][dimob]].
+That is going to take care of downloading Docker images for  [[link][ProphET]], [[link][prokka]], [[link][mlplasmids]], [[link][dimob]].  If you are running singularity, a folder called `.happie` will be created in your home directory.
 
 * Running
 (Optional) get some test data:
@@ -43,7 +47,41 @@ And try running it!
 happie --contigs ./test_data/ecoli104.fna  --output tmpresults
 #+end_src
 
-You should get an output file of
+Or, if you are using singularity:
+#+begin_src
+happie --contigs ./test_data/ecoli104.fna  --output tmpresults --virtualization singularity
+#+end_src
+
+You should get several output files:
+#+begin_src
+tmp       
+├── ProphET
+├── PropheET_log.txt
+├── abricate        
+├── abricate_resfinder_log.txt                                                                    
+├── abricate_vfdb_log.txt                                                                         
+├── cgview.tab      
+├── dimob           
+├── log.txt         
+├── mlplasmids      
+├── mlplasmids_log.txt                                                                            
+├── mobile_prokka                                                                           
+├── mobile_genome.fasta                                                                           
+├── mobile_genome.gbk                                                                             
+├── mobile_genome_coords                                                                          
+├── mobsuite                                                                                      
+├── names_key                                                                                     
+├── new_fasta.fasta                                                                               
+└── prokka
+#+end_src
+
+
+
+#  Stages
+Happie does the following things:
+1) Reannotates fasta with Prokka.  This ensures that the annotations are all the same format, which is useful for the pipelines that reference the annotations (like ProphET)
+2) 
+
 
 *** Note
 This module was renamed from "mobilephone", it was just too hard to google.
