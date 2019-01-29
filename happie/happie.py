@@ -675,12 +675,13 @@ def main(args=None):
     mlplasmids_dir = os.path.join(args.output, "mlplasmids", "")
     mlplasmids_results = os.path.join(args.output, "mlplasmids", "results.txt")
     abricate_dir = os.path.join(args.output, "abricate", "")
+    wgs_abricate_dir = os.path.join(args.output, "abricate_wgs", "")
     cgview_dir = os.path.join(args.output, "cgview", "")
     # make sub directories.  We don't care if they already exist;
     #  cause we clobber them later if they will cause problems for reexecution
     # except dont make prokka dirs
     for path in [prophet_dir, mobsuite_dir, mlplasmids_dir, island_dir,
-                 abricate_dir]:
+                 abricate_dir, wgs_abricate_dir]:
         os.makedirs(path, exist_ok=True)
 
     # write out args for easier re-running
@@ -808,9 +809,13 @@ def main(args=None):
         for line in tab_data:
             outf.write(line + "\n")
     #########################################
+    # run abricate on both the mobile genome, and the entire sequence, for enrichment comparison
     abricate_data = os.path.join(args.output, "abricate.tab")
     run_abricate(args, abricate_dir, mobile_fasta=mobile_genome_path_prefix + ".fasta",
                  images_dict=images_dict, all_results=abricate_data)
+    wgs_abricate_data = os.path.join(args.output, "wgs_abricate.tab")
+    run_abricate(args, wgs_abricate_dir, mobile_fasta=args.contigs,
+                 images_dict=images_dict, all_results=wgs_abricate_data)
     if not args.skip_reannotate:
         run_annotation(args, contigs=mobile_genome_path_prefix + ".fasta",
                        prokka_dir=mobile_prokka_dir, images_dict=images_dict,

@@ -4,21 +4,20 @@ if(!require(ggpubr)) devtools::install_github("kassambara/ggpubr")
 library(ggpubr)
 library(caret)
 ########################  Putting the "fun" in "functions" ############
-remove_linear_combos <- function(df, ignor) {
+remove_linear_combos <- function(df, ignor){
   outcomes <- df[, ignor]
   dat = df %>%
     select(- ignor) %>%
-    select(-)
     select(-findLinearCombos(.)$remove)
   dat[, ignor] = outcomes
   return(dat)
 }
 make_partitioned_df <- function(df, interest, p1=.33, p2=.5){
-  train_i <- createDataPartition(y=df[, interest], times = 1, p = p2)$Resample1
+  train_i <- createDataPartition(y=df[, interest], times = 1, p = p1)$Resample1
   traindf <- df[train_i, ]
   traindf$partition <- "train"
   test_hold <- df[-train_i, ]
-  test_i <- createDataPartition(y=test_hold[, interest], times = 1, p = p1)$Resample1
+  test_i <- createDataPartition(y=test_hold[, interest], times = 1, p = p2)$Resample1
   testdf <-  test_hold[test_i, ]
   testdf$partition <- "test"
   holddf <- test_hold[-test_i, , ]
@@ -229,6 +228,11 @@ vfs <- vf %>% transform(gene = strsplit(gene, "; ")) %>% unnest(gene) %>%
   distinct(short_name, source, gene, genet)  %>%
   transform(source=as.factor(source)) %>%
   spread(key = gene, value = genet, fill=0 ) %>% as.data.frame()
+vfs <- vf %>% transform(gene = strsplit(gene, "; ")) %>% unnest(gene) %>% 
+  group_by(short_name, gene) %>% mutate(genet=1) %>% 
+  distinct(short_name, source, gene, genet)  %>%
+  transform(source=as.factor(source)) %>%
+  spread(key = gene, value = genet, fill=0 ) %>% as.data.frame()
 
 rownames(vfs) <- vfs$short_name
 vfs <- vfs %>% select(-short_name)
@@ -240,34 +244,47 @@ str(vfs)
 set.seed(12345)
 vfs_trim <-vfs %>% do(remove_linear_combos(., "source"))
 mlvf <- make_partitioned_df(df=vfs_trim, interest="source", p1=.33, p2=.5)
-
+table(mlvf$partition)
 metric <- "Accuracy"
 mtry <- sqrt(ncol(traindf))
 tunegrid <- expand.grid(.mtry=mtry)
 ctrl <- 
   trainControl(
     method = "repeatedcv", 
-    number = 10,
+    #number = 10,
     repeats = 5,
     classProbs = T,
     summaryFunction = twoClassSummary)
 
 fit <- train(source~.,
-      data=mlvf %>% 
-        filter(partition=="train") %>% 
-        select(-partition) %>%
-        do(remove_linear_combos(., "source")),
-      method = "rf",
-      family = "binomial",
-      metric = "ROC",
-      trControl = ctrl)
+             data=mlvf %>% 
+               filter(partition %in% c("train", "holdout")) %>% 
+               select(-partition) %>%
+               do(remove_linear_combos(., "source")),
+             method = "rf",
+             family = "binomial",
+             metric = "ROC",
+             trControl = ctrl)
+fit <- train(source~.,
+             data=mlvf,
+             method = "rf",
+             family = "binomial",
+             metric = "ROC",
+             trControl = ctrl)
+fit$finalModel
+summary(fit)
+varImp(fit)
+confusionMatrix(predict(fit, 
+                        mlvf %>% filter(partition %in% c("train", "holdout")) %>% 
+                          select(-partition)), 
+                mlvf[mlvf$partition %in% c("train", "holdout"), "source"])
 
 confusionMatrix(predict(fit, 
-                        mlvf %>% filter(partition=="test") %>% 
+                        mlvf %>% filter(partition %in% c("test")) %>% 
                           select(-partition)), 
-                mlvf[mlvf$partition=="test", "source"])
+                mlvf[mlvf$partition %in% c("test"), "source"])
 
-
+fit
 
 #################  plotting size of pangenomes
 mob <- mobile %>% group_by(path, feature) %>% mutate(size=sum(end-start)) %>% select(path, size, source, feature) %>% distinct()
