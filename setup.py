@@ -33,9 +33,9 @@ if sys.version_info <= (3, 0):
     sys.exit(1)
 
 ## parse requirements file
-install_reqs = parse_requirements("requirements.txt",
-                                  session=False)
-requirements = [str(ir.req) for ir in install_reqs]
+# install_reqs = parse_requirements("requirements.txt",
+#                                   session=False)
+# requirements = [str(ir.req) for ir in install_reqs]
 
 setup(
     name='happie',
@@ -55,7 +55,10 @@ setup(
     author_email='nickp60@gmail.com',
     license='MIT',
     # handle requirments
-    install_requires=requirements,
+    install_requires=[
+        "Biopython",
+        "pyyaml"
+    ],
     # See https://pypi.python.org/pypi?%3Aaction=list_classifiers
     classifiers=[
         'Development Status :: 3 - Alpha',

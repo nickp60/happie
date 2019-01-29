@@ -5,11 +5,13 @@ programs:
     maintainer: nickp60
     name: prokka
     exe: null
+    results: null
   prophet:
     version: 1.14
     maintainer: nickp60
     name: prophet
     exe: null
+    results: phages_coords
   mlplasmids:
     version: latest
     maintainer: nickp60

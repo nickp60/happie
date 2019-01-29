@@ -1,0 +1,293 @@
+---
+title: "validation"
+output:
+  pdf_document: default
+  html_document: default
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# setwd("~/GitHub/happie/validation/")
+library(tidyverse)
+```
+
+# Introduction:
+In order to determine the appropriateness of ProphET for detecting prophage content in the environmental (and clinical) *E. coli*, we will compare the results of our pipeline ("happie") to the supplementary data  from Dr. Sherwood Casjens' paper "Prophages and bacterial genomics: what have we learned so far?" <https://doi.org/10.1046/j.1365-2958.2003.03580.x>.
+
+Happie uses ProphET as its primary phage detection tool, after comparing with the other state-of-the-art tools in the analysis described here: <https://nickp60.github.io/weird_one_offs/testing_3_prophage_finders/>.  Additionally, happie uses IslandPAth-DIMOB to detect genomic islands, which sometimes (but not always) are phage-related.  Here, we descibe how the results from happie compare with the results from Casjens 2003.
+
+## Data
+
+All the data and scripts can be found at <https://github.com/nickp60/happie/>, under the *validation* directory.
+
+We downloaded the word doc of the supplementary data table from Casjens 2013, *mmi_3580_sm_tables1.doc* (its always a .doc) and then transformated that into a slightly less terrible excel file *casjen2003.xlsx*[sic]. This new table we added a link to the genome on NCBI, and an FTP path to download the genome (in FASTA format, oops). This was difficult, as between 2003 and now, everything from gene names to taxonomy changed.  The original link to the genomes repository at Venter is broken, and so I had to spend a fair amount of time manually combing the databases for likely strains. 3 of these I was unable to locate, either due to not finding the genome itself, or the locus tags having changed so much that no comparison was possible.
+
+ The missing genomes were the following:
+ 
+- Chlamydia pneumoniae J139
+- Chlamydia trachomatis serovar D 
+- Xanthomonas axonopodis 903
+
+
+I then started reading in the file, tidying the data, and munging FTP paths to the genbank files so that we could view the annotations and locus tags.
+
+
+_NOTE_: due to a git mishap, I lost the version of casjen2003.xlsx that had ftp paths; the paths were there when (below) I created the casjen2003_newloci.xlsx file, so those can be consulted instead.
+```{r, eval=FALSE}
+
+
+dat <- readxl::read_xlsx("./casjen2003.xlsx", sheet = 2)
+dat <- dat %>% fill(host, assembly) #%>% View()
+dat$ftp_gbk <- gsub(".fna.gz", ".gbff.gz", dat$ftp)
+
+```
+
+Then, for testing, I downloaded one of these genomes:
+
+```{r, eval=FALSE}
+dir.create("genomes")
+test_file_path <- "genomes/tmp.gbk"
+this_path <- dat[1, "ftp_gbk"]
+if (!file.exists(test_file_path)){
+  cmd <- paste("curl -L", this_path, "| gunzip  >", test_file_path)
+  print(cmd)
+  system(cmd)
+}
+```
+
+Now, for this genome, we need to see if a locus tag given ("AgrC0835"") actually match whats in the file.  They dont in this case (old locus tag is "Agr_C_835"). The fun continues: some had different cases, issues with leading 0's, missing locus tags, and more. A quick back-of-the-envelope assessment hinted that the time spent trying to parse would be too high; these must be added manually.
+
+So, I downloaded all the genomes:
+```{r eval=F}
+for (i in 1:nrow(dat)){
+  test_file_path <- file.path("genomes", paste0(gsub(" ", "_", dat$host[i]), ".gbk"))
+  this_path <- dat[i, "ftp_gbk"]
+  if (!file.exists(test_file_path)){
+    cmd <- paste("curl -L", this_path, "| gunzip  >", test_file_path)
+    print(cmd)
+    system(cmd)
+  }
+}
+```
+
+(later)
+
+We need a new copy of the table to annotate:
+
+```{r, eval=FALSE}
+file.copy(from = "./casjen2003.xlsx", to="./casjen2003_newloci.xlsx", overwrite = F)
+```
+
+Next I had the enviable jot of going entry by entry, and trying to find the annotated phage region's coords now that the locus tags are different.  In practice, this meant finding the first and last listed locus tags (or the next one, if the first could not be found), and entering in the start or end coord, respectively.
+
+Occasionally (such as for E. coli EDL933) I would have to get the RefSeq (GCA) version of the Genbank (GCF) version, as the locus tags failed to match.
+
+Escherichia coli O157:H7 EDL933 appeared to be using locus tag nomencalture from another organisms, so I had to skip that one.  Genes that were from the same operon had locus tags scattered in distant parts of this genome, in contrast to what was reported in Casjens 2003.
+
+I was unable to match annotations for the following organisms:
+- Escherichia coli O157:H7 EDL933
+- Mesorhizobium loti MAFF303099
+
+In some cases, the excel file was modified to fix naming issues: for instance, I found that the dash in Shewanella MR–1 needs to be changed to a UTF-8 hyphen, to avoid errors with prokka and the em-dash.
+
+In instances of just single genes annotated, I just took the first one's start and end coords; we will ignore these downstream, as the table mentions every integrase, even if not in a phagey region.
+
+In the meantime, I ran happie on all those genomes, and prettied up the results, combining them into a single results file:
+```{sh, eval=FALSE}
+counter=0; 
+for i in ./genomes/*.gbk; do echo $counter $i; name=$(basename ${i%.*}); happie --contigs $i -o ${name}_casjens ; counter=$((counter+1)); done
+cat ./*/mobile_genome_coords >> combined_happie_coords
+# edit -- removed loti, see above
+mv Mesorhizobium_loti_____MAFF303099_casjens/mobile_genome_coords Mesorhizobium_loti_____MAFF303099_casjens/ignored_mobile_genome_coords
+mv Escherichia_coli_O157\:H7_EDL933_casjens/mobile_genome_coords Escherichia_coli_O157\:H7_EDL933_casjens/ignored_mobile_genome_coords
+rm combined_happie_coords; cat ./*/mobile_genome_coords >> combined_happie_coords
+
+```
+
+
+## evaluating success
+I had to do a bit of munging file names to make sure all the names line up.  Inititally, I thought I moght be able to programatically assess hits (ie, how well happie results compared to the published data), so I needed to make sure the names matched up.
+
+After another round of time-estimation, I decided to score hits by hand, with the following criteria.
+
+- The "status" column reports whether the hit was identified with ProphET, dimob, both, not identified as "na"
+- A hit would be considered valid of the majority of the sequence overlapped.  This is a fuzzy (and probably generous) estimation, but neccessary as the paper reports everything they found, from single genes to two intact and neighboring prophages.
+- a new entry was added with "na" for hits identified with ProphET (or ProphET and DIMOB, but not just DIMOB) but not in Casjens 2003 
+
+```{r}
+happie_names = c("path", "program", "type", "sequence", "start", "stop")
+happie_dat_raw <- read.csv("combined_happie_coords", sep="\t", header = F, col.names = happie_names, stringsAsFactors = F)
+
+### get those that had empty results files to make dummy entries
+#
+# for i in ./*/; do if [ ! -s "${i}mobile_genome_coords" ]; then echo $i; fi done
+# These lacked phage hits in Casjens 2003
+missing_include <- c(
+  "Buchnera_aphidicola_Ap_casjens/",
+  "Buchnera_aphidicola_Bp_casjens/",
+  "Buchnera_aphidicola_Sg_casjens/",
+  "Mycoplasma_genitalium_G-37_casjens/",
+  "Mycoplasma_pneumoniae_M129_casjens/")
+# these were missing data; see above. either the annotations were missing or the genome was
+missing_exclude <- c(
+  "Chlamydia_pneumoniae__J139_casjens/",
+  "Chlamydia_trachomatis__serovar_D_casjens/",
+  "Escherichia_coli_O157_VT-2_Sakai_casjens/",
+  "Mesorhizobium_loti_____MAFF303099",
+  "Xanthomonas_axonopodis__903_casjens/")
+# add missing directory
+tmp <- data.frame(
+  path=paste0("/home/1/2/3/4/", missing_include),  
+  program=rep(NA, length(missing_include)),
+  type=rep(NA, length(missing_include)),
+  sequence=rep(NA, length(missing_include)),
+  start=rep(NA, length(missing_include)),
+  stop=rep(NA, length(missing_include))
+)
+happie_dat <- rbind(happie_dat_raw, tmp)
+happie_dat$short_name <- gsub("\\/(.*?)\\/(.*?)\\/(.*?)\\/(.*?)\\/(.*?)\\/(.*?)\\/(.*)", "\\6", happie_dat$path)
+happie_dat$short_name <- gsub("_casjens", "", happie_dat$short_name)
+
+
+new_dat <- readxl::read_xlsx("./casjen2003_newloci.xlsx", sheet = 2)
+# 
+new_dat <- new_dat %>% fill(host, ftp, assembly, seq, n) 
+new_dat$short_name <- gsub("\\(", "", gsub("\\)", "", gsub(" ", "_", new_dat$host )))
+# remove the genomes we couldnt use; this is done by default now
+# new_dat <- new_dat[!new_dat$short_name %in% missing_exclude,]
+# These is our check
+new_dat$short_name[!(new_dat$short_name %in% happie_dat$short_name)]
+happie_dat$short_name[!(happie_dat$short_name %in% new_dat$short_name)]
+
+#merged
+mdat <- merge(new_dat, happie_dat, by="short_name")
+```
+
+Now, we have our data in. 
+
+The "id" column holds the result from happie, with the criteria listed above. 
+
+```{r}
+
+ggplot(new_dat, aes(x=id, fill=id)) + geom_histogram(stat="count") + coord_flip() + scale_fill_manual(values = c("grey80", "grey60", "grey40", "grey20"), guide=F)
+
+```
+
+
+
+We can assess 4 difference scenarios
+
+1. genomes with no phage, no phage detected
+2. genomes with no phage, phage detected
+3. genomes with phage, no phage detected
+4. genomes with phage, phage detected
+
+
+I realize I needed to have a column to add whether or not to include a row of the Casjens 2003 data.  Theres a bunch of messy rows (single genes, or very unclear notes), so I went back and added a column to address this.
+
+the column has the following identifiers
+
+- intact:  metadata says its excisable, inducible, or filimenetous
+- intactish: usually described as X-like, meaning its similar to known family of prophage
+- partial: a phagey looking operon, but likely missing genes needed for function
+- fragments: one or more phage gene
+- remnants: degraded, but looks like an old phage
+- plasmid: see Borellia genome; the authors thought plasmids would be good to include for that one
+- na: data missing altogether, either could access the genome or couldnt relate given locus tags to it.
+- unknown: no annotation or annotation unclear
+- missing: phages identified with happie but not in original work
+
+```{r}
+ggplot(new_dat, aes(x=status, fill=status)) + geom_histogram(stat="count") + coord_flip() + scale_fill_discrete(guide=F)
+```
+
+I also reformated the "missing" column to be new rows for each entry.
+
+Ugh, this is getting messier by the minute.  Onward into the gap!
+
+
+Next, I made a rough "result" column, reporting a conclusion for each entry.
+```{r}
+
+valid_hit_categories <-  c("remnants", "partial", "intact", "intactish")
+
+new_dat <- new_dat %>% group_by(short_name) %>%
+  mutate(
+    result = ifelse(
+      (status %in% valid_hit_categories & !id %in% c("na")) , 
+      "True Positives",
+      ifelse(
+        (status %in% c("na") & id %in% c("na")),
+        "True Negatives",
+        ifelse(
+          (status %in% valid_hit_categories & id %in% c("na")),
+          "False Negatives",
+          ifelse(
+            status %in% c("missing"),
+            "False Positives / New Phages",
+            "Unclear")
+        )
+      )
+    )
+  ) 
+new_dat %>% group_by(result) %>% summarise(n=n())
+```
+
+Then, make some quick summary calcualtions:
+```{r}
+# number of `valid_hit_categories` in happie data divided by those in benchmark
+sensitivity = (
+  new_dat %>% filter(status %in% valid_hit_categories ) %>% filter(id != "na") %>% nrow() /
+  new_dat %>% filter(status %in% valid_hit_categories ) %>% nrow() 
+)
+
+specificity = (
+  new_dat %>% filter(!status %in% valid_hit_categories ) %>% filter(!grepl("prophet", id)) %>% nrow() /
+  new_dat %>% filter(!status %in% valid_hit_categories ) %>% nrow() 
+)
+
+# how many sequences (chomasomes or plasmids) lacked prophages in our data divided by Casjens 2003
+specificity = (
+  new_dat %>% filter(status == "na" ) %>% filter(id == "na") %>% nrow() /
+  new_dat %>% filter(status == "na" ) %>% nrow() 
+)
+
+```
+
+So we ended up with a sensitivity of `r sensitivity` and a specificity of `r specificity`.  These are not the most appropriate, as there a lot (`r new_dat %>% filter(result=="Unclear") %>% nrow()`) of our hits that end up in the "Unclear" category, as these could just be fragments, highly degraded prophage, single genes, etc.  
+
+## conclusions
+Together, we can see that ProphET successfully identifies that majority of the phage regions mentioned in Casjens 2003.  Additionally, it identifies regions missing from that list;  given how conservative ProphET seemed in the previous comparison against pther phage ID tools, these regions are of interest, and may be true phages that are more easily identified now in 2019 with all the advances in viral phylogenitcs.  2003 was pre-HTS metagenomics era, and the first marine "metagenome" had just been sequenced (Brietbart 2002).  Research efforts like those from Roux, 2015 expanded the known viral diversity 10-fold (<https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4533152/>).  Given that ProphET uses a database updated on a rolling basis means that it it can take advantage of these recent findings.
+
+
+```{r}
+
+#ggplot(new_dat, aes(x=result, fill=result)) + geom_histogram(stat="count") + coord_flip() +scale_fill_discrete(guide=F)
+ggplot(new_dat, aes(x=result, fill=id)) + geom_histogram(stat="count") + coord_flip() + scale_fill_manual(values = c("red", "orange", "grey80", "yellow"))
+
+```
+
+
+
+
+# Addendum: Assessing plasmid content in E. coli.
+
+The plasmid-finding program used by happie (mlplasmids <https://gitlab.com/sirarredondo/mlplasmids>) uses a taxa-specific support vector machine classifier, and currently has them for E. coli,  Enterococcus faecium, and Klebsiella pneumoniae.  As such, we can only assess how it performs against to E. coli genomes in this dataset, as it is not the appropriate tool to assess plasmid content in diverse taxa.
+
+## Results
+
+| Strain | Sequence      | True    | mlplasmids |  Note |
+|--------|---------------|---------|------------|-------|
+| K-12   | NC_000913.3   | Chrom   | Chrom      |       |
+| CFT073 | NC_004431.1   | Chrim   | Chrom      |       |
+| EDL933 | NZ_CP008957.1 | Chrom   | Chrom      | X      |
+| EDL933 | NZ_CP008958.1 | Plasmid | Plasmid    | X     |
+
+Note that EDL933 was excluded for reasons above, but can still be assessed for plasmid content.
+
+This doesn't show a ton of interest, but doing a whole analysis to test how well mlplasmids works on E coli genomes would just be recapitulating their publication, and is outside the scope of this validation.
+
+
+
