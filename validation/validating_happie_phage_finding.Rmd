@@ -258,6 +258,10 @@ specificity = (
 
 So we ended up with a sensitivity of `r sensitivity` and a specificity of `r specificity`.  These are not the most appropriate, as there a lot (`r new_dat %>% filter(result=="Unclear") %>% nrow()`) of our hits that end up in the "Unclear" category, as these could just be fragments, highly degraded prophage, single genes, etc.  
 
+## So whats the story with those "False Positives"?
+
+
+
 ## conclusions
 Together, we can see that ProphET successfully identifies that majority of the phage regions mentioned in Casjens 2003.  Additionally, it identifies regions missing from that list;  given how conservative ProphET seemed in the previous comparison against pther phage ID tools, these regions are of interest, and may be true phages that are more easily identified now in 2019 with all the advances in viral phylogenitcs.  2003 was pre-HTS metagenomics era, and the first marine "metagenome" had just been sequenced (Brietbart 2002).  Research efforts like those from Roux, 2015 expanded the known viral diversity 10-fold (<https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4533152/>).  Given that ProphET uses a database updated on a rolling basis means that it it can take advantage of these recent findings.
 
