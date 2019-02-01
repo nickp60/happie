@@ -11,6 +11,10 @@ editor_options:
 knitr::opts_chunk$set(echo = TRUE)
 # setwd("~/GitHub/happie/validation/")
 library(tidyverse)
+
+source("http://bioconductor.org/biocLite.R")
+biocLite("IRanges")
+library(IRanges)
 ```
 
 # Introduction:
@@ -22,12 +26,10 @@ Happie uses ProphET as its primary phage detection tool, after comparing with th
 
 All the data and scripts can be found at <https://github.com/nickp60/happie/>, under the *validation* directory.
 
-We downloaded the word doc of the supplementary data table from Casjens 2013, *mmi_3580_sm_tables1.doc* (its always a .doc) and then transformated that into a slightly less terrible excel file *casjen2003.xlsx*[sic]. This new table we added a link to the genome on NCBI, and an FTP path to download the genome (in FASTA format, oops). This was difficult, as between 2003 and now, everything from gene names to taxonomy changed.  The original link to the genomes repository at Venter is broken, and so I had to spend a fair amount of time manually combing the databases for likely strains. 3 of these I was unable to locate, either due to not finding the genome itself, or the locus tags having changed so much that no comparison was possible.
+We downloaded the word doc of the supplementary data table from Casjens 2013, *mmi_3580_sm_tables1.doc* (its always a .doc) and then transformated that into a slightly less terrible excel file *casjen2003.xlsx*[sic]. This new table we added a link to the genome on NCBI, and an FTP path to download the genome (in FASTA format, oops). This was difficult, as between 2003 and now, everything from gene names to taxonomy changed.  The original link to the genomes repository at Venter is broken, and so I had to spend a fair amount of time manually combing the databases for likely strains. Of additional help is the following document, from PhageFinder: <http://phage-finder.sourceforge.net/302_bact_gen.pdf>. Only 1 of these I was unable to locate, either due to not finding the genome itself, or the locus tags having changed so much that no comparison was possible.
 
- The missing genomes were the following:
+ The missing genome:
  
-- Chlamydia pneumoniae J139
-- Chlamydia trachomatis serovar D 
 - Xanthomonas axonopodis 903
 
 
@@ -90,7 +92,7 @@ I was unable to match annotations for the following organisms:
 - Escherichia coli O157:H7 EDL933
 - Mesorhizobium loti MAFF303099
 
-In some cases, the excel file was modified to fix naming issues: for instance, I found that the dash in Shewanella MR–1 needs to be changed to a UTF-8 hyphen, to avoid errors with prokka and the em-dash.
+In some cases, the excel file was modified to fix naming issues: for instance, I found that the dash in Shewanella MR–1 needs to be changed to a UTF-8 hyphen, to avoid errors with prokka and the em-dashes.
 
 In instances of just single genes annotated, I just took the first one's start and end coords; we will ignore these downstream, as the table mentions every integrase, even if not in a phagey region.
 
@@ -110,15 +112,16 @@ rm combined_happie_coords; cat ./*/mobile_genome_coords >> combined_happie_coord
 ## evaluating success
 I had to do a bit of munging file names to make sure all the names line up.  Inititally, I thought I moght be able to programatically assess hits (ie, how well happie results compared to the published data), so I needed to make sure the names matched up.
 
-After another round of time-estimation, I decided to score hits by hand, with the following criteria.
+<!-- After another round of time-estimation, I decided to score hits by hand, with the following criteria. -->
+Previous verison of this script replied on hand-assessed overlaps in a "staus" column, but this was converted to IRanges assessment.There was extremely good agreement between the hand-scored results and the machine-scored results, but as there were a few missed by hand and detected with IRanges, I used that exclusivbely from here on out, with the following criteria.
 
-- The "status" column reports whether the hit was identified with ProphET, dimob, both, not identified as "na"
-- A hit would be considered valid of the majority of the sequence overlapped.  This is a fuzzy (and probably generous) estimation, but neccessary as the paper reports everything they found, from single genes to two intact and neighboring prophages.
-- a new entry was added with "na" for hits identified with ProphET (or ProphET and DIMOB, but not just DIMOB) but not in Casjens 2003 
+- A hit would be considered valid of the majority of the sequence overlapped.  This is a fuzzy (and probably generous) estimation, but neccessary as the paper reports everything they found, from single genes to two intact and neighboring prophages.In some cases, the prophet hit was entirely contained within the reported hit (see Ralstonia_solanacearum_GMI1000, NC_003295.1,879632-93943);  keeping a hard scoring threshold would result in accurately reporting the detection, so we changed the length threshold to a more generous definition: greater than half the length of (min(subject_end-subject_start, query_end-query_start)).  
+- See the docs for definition of overlaps: <https://www.rdocumentation.org/packages/IRanges/versions/2.0.1/topics/findOverlaps-methods> .  I used the "any" type.
+- a new entry was added with "na" for hits identified with ProphET (or ProphET and DIMOB, but not just DIMOB) but not in Casjens 2003
+
 
 ```{r}
-happie_names = c("path", "program", "type", "sequence", "start", "stop")
-happie_dat_raw <- read.csv("combined_happie_coords", sep="\t", header = F, col.names = happie_names, stringsAsFactors = F)
+happie_dat_raw <- read.csv("combined_happie_coords", sep="\t", header = F, col.names =c("path", "program", "type", "sequence", "start", "stop"), stringsAsFactors = F)
 
 ### get those that had empty results files to make dummy entries
 #
@@ -132,8 +135,6 @@ missing_include <- c(
   "Mycoplasma_pneumoniae_M129_casjens/")
 # these were missing data; see above. either the annotations were missing or the genome was
 missing_exclude <- c(
-  "Chlamydia_pneumoniae__J139_casjens/",
-  "Chlamydia_trachomatis__serovar_D_casjens/",
   "Escherichia_coli_O157_VT-2_Sakai_casjens/",
   "Mesorhizobium_loti_____MAFF303099",
   "Xanthomonas_axonopodis__903_casjens/")
@@ -149,11 +150,19 @@ tmp <- data.frame(
 happie_dat <- rbind(happie_dat_raw, tmp)
 happie_dat$short_name <- gsub("\\/(.*?)\\/(.*?)\\/(.*?)\\/(.*?)\\/(.*?)\\/(.*?)\\/(.*)", "\\6", happie_dat$path)
 happie_dat$short_name <- gsub("_casjens", "", happie_dat$short_name)
+# I cant seem to nest by program name, so I have to filter
+prophet_nested = happie_dat %>% filter(program=="prophet") %>% group_by(short_name, sequence) %>% nest(.key="prophet", start, stop)
+dimob_nested = happie_dat %>% filter(program=="dimob") %>% group_by(short_name, sequence)%>% nest(.key="dimob", start, stop)
+
+nested_happie <- full_join(prophet_nested, dimob_nested, by=c("short_name", "sequence"))
+
+
+
 
 
 new_dat <- readxl::read_xlsx("./casjen2003_newloci.xlsx", sheet = 2)
 # 
-new_dat <- new_dat %>% fill(host, ftp, assembly, seq, n) 
+new_dat <- new_dat %>% fill(host, ftp, assembly, sequence, n) 
 new_dat$short_name <- gsub("\\(", "", gsub("\\)", "", gsub(" ", "_", new_dat$host )))
 # remove the genomes we couldnt use; this is done by default now
 # new_dat <- new_dat[!new_dat$short_name %in% missing_exclude,]
@@ -161,8 +170,82 @@ new_dat$short_name <- gsub("\\(", "", gsub("\\)", "", gsub(" ", "_", new_dat$hos
 new_dat$short_name[!(new_dat$short_name %in% happie_dat$short_name)]
 happie_dat$short_name[!(happie_dat$short_name %in% new_dat$short_name)]
 
+
+mdat <-left_join(x=new_dat, y=nested_happie, by=c("short_name", "sequence"))
 #merged
-mdat <- merge(new_dat, happie_dat, by="short_name")
+
+# make columns with the any hits for prophet or dimob, indexing into the nested coords
+mdat <- mdat %>%
+  filter(!is.na(valid_locus_start)) %>%
+  #mutate(length=valid_locus_end-valid_locus_start) %>%
+  group_by(short_name, sequence, valid_locus_start) %>%
+  mutate(
+    unfiltered_prophet_hit = list(countOverlaps(
+      IRanges(prophet[[1]]$start, prophet[[1]]$stop),
+      IRanges(valid_locus_start, valid_locus_end),
+      type="any", minoverlap = 1)),
+    unfiltered_dimob_hit = list(countOverlaps(
+      IRanges(dimob[[1]]$start, dimob[[1]]$stop),
+      IRanges(valid_locus_start, valid_locus_end),
+      type="any", minoverlap = 1)))
+# get those hits out of the nested results
+for (i in 1:nrow(mdat)){
+  dimob_vec <- as.logical(d[i, "unfiltered_dimob_hit"][[1]][[1]])
+  prophet_vec <- as.logical(d[i, "unfiltered_prophet_hit"][[1]][[1]])
+  mdat[i, "dimob_start"] <- ifelse(any(dimob_vec),
+    mdat[i,"dimob"][[1]] %>% as.data.frame() %>% filter(dimob_vec) %>% head(1) %>% select(start) %>% unlist(), NA)
+  mdat[i, "dimob_stop"] <- ifelse(any(dimob_vec),
+    mdat[i,"dimob"][[1]] %>% as.data.frame() %>% filter(dimob_vec) %>% head(1) %>% select(stop) %>% unlist(), NA)
+  mdat[i, "prophet_start"] <- ifelse(any(prophet_vec),
+    mdat[i,"prophet"][[1]] %>% as.data.frame() %>% filter(prophet_vec) %>% head(1) %>% select(start) %>% unlist(), NA)
+  mdat[i, "prophet_stop"] <- ifelse(any(prophet_vec),
+    mdat[i,"prophet"][[1]] %>% as.data.frame() %>% filter(prophet_vec) %>% head(1) %>% select(stop) %>% unlist(), NA)
+}
+
+```
+
+We have the coordinates of possible hits at this point, now lets filter by length, Again, we cant do this ealrier, cause we want to have an overlap over half the length of either the subject or the query, not jsut one.  This we we could get all these hits:
+
+```{bash eval=FALSEe}
+---------------0000000000---------------- ref
+------------ooooooooo----------------------- 
+----------------ooooooo---------------------- 
+-------------------ooooooooooo
+```
+
+
+```{r}
+mdat <- mdat %>%
+  group_by(short_name, sequence, valid_locus_start) %>%
+  mutate(
+    prophet_hit = ifelse(
+      is.na(prophet_start), 
+      0,
+      countOverlaps(
+        IRanges(prophet_start, prophet_stop),
+        IRanges(valid_locus_start, valid_locus_end),
+        type="any", 
+        minoverlap = min(prophet_stop-prophet_start, valid_locus_end-valid_locus_start)/2)),
+     dimob_hit = ifelse(
+      is.na(dimob_start), 
+      0,
+      countOverlaps(
+        IRanges(dimob_start, dimob_stop),
+        IRanges(valid_locus_start, valid_locus_end),
+        type="any", 
+        minoverlap = min(dimob_stop-dimob_start, valid_locus_end-valid_locus_start)/2)))
+  # select(short_name, sequence, valid_locus_start, valid_locus_end, id, prophet_hit) %>%
+  # need to check against manually done results?  Here
+    # mutate(ex = ifelse(grepl("prophet", id) & prophet_hit == 1, "YAY", 
+  #                    ifelse(!grepl("prophet", id) & prophet_hit == 0, "YAY", "sh%t"))) %>%
+  # TL;DR : this is are 3 differences; two I should have called a hit, and one split hit that is shorter than the total.
+```
+
+Having thoroughly mangled this dataframe, lets get rid of some of those extraneous columns.
+
+```{r}
+keepers <- c("short_name","sequence","assessment","mynotes","status", "valid_locus_start",   "valid_locus_end" ,"prophet_hit", "dimob_hit")
+mdat <- mdat%>% select(keepers) %>%  View()
 ```
 
 Now, we have our data in. 
@@ -171,7 +254,7 @@ The "id" column holds the result from happie, with the criteria listed above.
 
 ```{r}
 
-ggplot(new_dat, aes(x=id, fill=id)) + geom_histogram(stat="count") + coord_flip() + scale_fill_manual(values = c("grey80", "grey60", "grey40", "grey20"), guide=F)
+ggplot(mdat, aes(x=id, fill=id)) + geom_histogram(stat="count") + coord_flip() + scale_fill_manual(values = c("grey80", "grey60", "grey40", "grey20"), guide=F)
 
 ```
 
