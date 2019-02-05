@@ -12,8 +12,8 @@ knitr::opts_chunk$set(echo = TRUE)
 # setwd("~/GitHub/happie/validation/")
 library(tidyverse)
 
-source("http://bioconductor.org/biocLite.R")
-biocLite("IRanges")
+#source("http://bioconductor.org/biocLite.R")
+#biocLite("IRanges")
 library(IRanges)
 ```
 
@@ -42,7 +42,6 @@ _NOTE_: due to a git mishap, I lost the version of casjen2003.xlsx that had ftp 
 
 dat <- readxl::read_xlsx("./casjen2003.xlsx", sheet = 2)
 dat <- dat %>% fill(host, assembly) #%>% View()
-dat$ftp_gbk <- gsub(".fna.gz", ".gbff.gz", dat$ftp)
 
 ```
 
@@ -51,7 +50,7 @@ Then, for testing, I downloaded one of these genomes:
 ```{r, eval=FALSE}
 dir.create("genomes")
 test_file_path <- "genomes/tmp.gbk"
-this_path <- dat[1, "ftp_gbk"]
+this_path <- "ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/009/065/GCF_000009065.1_ASM906v1/GCF_000009065.1_ASM906v1_genomic.gbff.gz"
 if (!file.exists(test_file_path)){
   cmd <- paste("curl -L", this_path, "| gunzip  >", test_file_path)
   print(cmd)
@@ -61,26 +60,36 @@ if (!file.exists(test_file_path)){
 
 Now, for this genome, we need to see if a locus tag given ("AgrC0835"") actually match whats in the file.  They dont in this case (old locus tag is "Agr_C_835"). The fun continues: some had different cases, issues with leading 0's, missing locus tags, and more. A quick back-of-the-envelope assessment hinted that the time spent trying to parse would be too high; these must be added manually.
 
+
+We need a new copy of the table to annotate, and after making this file, I added FTP paths for all the assemblies.
+
+```{r, eval=FALSE}
+file.copy(from = "./casjen2003.xlsx", to="./casjen2003_newloci.xlsx", overwrite = F)
+
+new_dat <- readxl::read_xlsx("./casjen2003_newloci.xlsx", sheet = 2)
+# 
+new_dat <- new_dat %>% fill(host, ftp, assembly, sequence, n) 
+# new_dat$short_name <- gsub("\\(", "", gsub("\\)", "",  gsub("\\.", "", gsub("\\s+", "_", new_dat$host ))))
+new_dat$short_name <- gsub("\\W+", "_", new_dat$host )
+new_dat$seqname <-  gsub("(.*)\\..*", "\\1", new_dat$sequence)
+new_dat$ftp_gbk <- gsub(".fna.gz", ".gbff.gz", new_dat$ftp)
+
+```
+
+
 So, I downloaded all the genomes:
 ```{r eval=F}
-for (i in 1:nrow(dat)){
-  test_file_path <- file.path("genomes", paste0(gsub(" ", "_", dat$host[i]), ".gbk"))
-  this_path <- dat[i, "ftp_gbk"]
+for (i in 1:nrow(new_dat)){
+  test_file_path <- file.path("genomes", paste0(new_dat$short_name[i], ".gbk"))
+  this_path <- new_dat[i, "ftp_gbk"]
   if (!file.exists(test_file_path)){
     cmd <- paste("curl -L", this_path, "| gunzip  >", test_file_path)
     print(cmd)
     system(cmd)
   }
 }
-```
+``` 
 
-(later)
-
-We need a new copy of the table to annotate:
-
-```{r, eval=FALSE}
-file.copy(from = "./casjen2003.xlsx", to="./casjen2003_newloci.xlsx", overwrite = F)
-```
 
 Next I had the enviable jot of going entry by entry, and trying to find the annotated phage region's coords now that the locus tags are different.  In practice, this meant finding the first and last listed locus tags (or the next one, if the first could not be found), and entering in the start or end coord, respectively.
 
@@ -99,14 +108,16 @@ In instances of just single genes annotated, I just took the first one's start a
 In the meantime, I ran happie on all those genomes, and prettied up the results, combining them into a single results file:
 ```{sh, eval=FALSE}
 counter=0; 
-for i in ./genomes/*.gbk; do echo $counter $i; name=$(basename ${i%.*}); happie --contigs $i -o ${name}_casjens ; counter=$((counter+1)); done
+for i in ./genomes/*.gbk; do echo $counter $i; name=$(basename ${
+i%.*}); if [ -d "${name}_casjens" ] ; then echo "skipping ${name}"; else happie --contigs $i -o ${name}_casjens ; fi ; counter=$((counter+1)); done
 cat ./*/mobile_genome_coords >> combined_happie_coords
 # edit -- removed loti, see above
-mv Mesorhizobium_loti_____MAFF303099_casjens/mobile_genome_coords Mesorhizobium_loti_____MAFF303099_casjens/ignored_mobile_genome_coords
-mv Escherichia_coli_O157\:H7_EDL933_casjens/mobile_genome_coords Escherichia_coli_O157\:H7_EDL933_casjens/ignored_mobile_genome_coords
+#mv Mesorhizobium_loti_____MAFF303099_casjens/mobile_genome_coords Mesorhizobium_loti_____MAFF303099_casjens/ignored_mobile_genome_coords
+#mv Escherichia_coli_O157\:H7_EDL933_casjens/mobile_genome_coords Escherichia_coli_O157\:H7_EDL933_casjens/ignored_mobile_genome_coords
 rm combined_happie_coords; cat ./*/mobile_genome_coords >> combined_happie_coords
 
 ```
+
 
 
 ## evaluating success
@@ -160,10 +171,13 @@ nested_happie <- full_join(prophet_nested, dimob_nested, by=c("short_name", "seq
 
 
 
-new_dat <- readxl::read_xlsx("./casjen2003_newloci.xlsx", sheet = 2)
+#new_dat <- readxl::read_xlsx("./casjen2003_newloci.xlsx", sheet = 2)
 # 
-new_dat <- new_dat %>% fill(host, ftp, assembly, sequence, n) 
-new_dat$short_name <- gsub("\\(", "", gsub("\\)", "", gsub(" ", "_", new_dat$host )))
+#new_dat <- new_dat %>% fill(host, ftp, assembly, sequence, n) 
+#new_dat$short_name <- gsub("\\(", "", gsub("\\)", "", gsub(" ", "_", new_dat$host )))
+#new_dat$seqname <-  gsub("(.*)\\..*", "\\1", new_dat$sequence )
+
+
 # remove the genomes we couldnt use; this is done by default now
 # new_dat <- new_dat[!new_dat$short_name %in% missing_exclude,]
 # These is our check
@@ -171,11 +185,40 @@ new_dat$short_name[!(new_dat$short_name %in% happie_dat$short_name)]
 happie_dat$short_name[!(happie_dat$short_name %in% new_dat$short_name)]
 
 
-mdat <-left_join(x=new_dat, y=nested_happie, by=c("short_name", "sequence"))
+```
+### getting the number of genes in a given locus
+The criteria used by ProphET, Phage_Finder, etc included a filtering step to remove any loci of less than 7 CDS's from the Casjens table.  To do this, we first needed to convert the GenBank files to GFF, for use with bedtools
+
+```bash
+# gbk to gff conversion
+conda install readseq
+mkdir genomes_gffs;for i in genomes/*.gbk; do bn=$(basename "$i"); filename="${bn%.*}" ; echo $filename; readseq -f 24 $i -o genomes_gffs/${filename}.gff ; done
+
+```
+And then reading in the GFF files, in one of the least efficient ways possible. 
+
+```{r}
+new_dat$n_genes <- NA
+nrows <-nrow(new_dat)
+for (i in 1:nrow(new_dat)){
+print(paste(i, "of", nrows))
+path = file.path("genomes_gffs", paste0(new_dat$short_name[i], ".gff")) 
+this_gff <- read.csv2(path,  comment.char = "#", header=F, sep="\t", col.names = c("seqname",	"source",	"feature",	"start",	"end",	"score",	"strand",	"frame",	"attributes")) %>% filter(feature=="CDS")
+
+new_dat$n_genes[i] <- this_gff %>% filter(seqname == new_dat$seqname[i]) %>% filter(start >= new_dat$valid_locus_start[i] & end <= new_dat$valid_locus_end[i]) %>%nrow()
+}
+
+new_dat$enough_genes <- new_dat$n_genes > 7
+```
+HEre we can see that only `r table(new_dat$enough_genes)[[2]]` of the `r nrow(new_dat)` had loci longer than 
+
+
+```{r}
 #merged
+mdat_pre <-left_join(x=new_dat, y=nested_happie, by=c("short_name", "sequence"))
 
 # make columns with the any hits for prophet or dimob, indexing into the nested coords
-mdat <- mdat %>%
+mdat <- mdat_pre %>%
   filter(!is.na(valid_locus_start)) %>%
   #mutate(length=valid_locus_end-valid_locus_start) %>%
   group_by(short_name, sequence, valid_locus_start) %>%
@@ -188,10 +231,20 @@ mdat <- mdat %>%
       IRanges(dimob[[1]]$start, dimob[[1]]$stop),
       IRanges(valid_locus_start, valid_locus_end),
       type="any", minoverlap = 1)))
+# add back in the rows without a start coord (ie, the rows for sequences with no known phage)
+missing <- mdat_pre %>% 
+  filter(is.na(valid_locus_start)) %>%
+  mutate(
+    unfiltered_prophet_hit = NA,
+    unfiltered_dimob_hit = NA)
+
+mdat <- mdat %>% bind_rows(., missing)
+  
+
 # get those hits out of the nested results
 for (i in 1:nrow(mdat)){
-  dimob_vec <- as.logical(d[i, "unfiltered_dimob_hit"][[1]][[1]])
-  prophet_vec <- as.logical(d[i, "unfiltered_prophet_hit"][[1]][[1]])
+  dimob_vec <- as.logical(mdat[i, "unfiltered_dimob_hit"][[1]][[1]])
+  prophet_vec <- as.logical(mdat[i, "unfiltered_prophet_hit"][[1]][[1]])
   mdat[i, "dimob_start"] <- ifelse(any(dimob_vec),
     mdat[i,"dimob"][[1]] %>% as.data.frame() %>% filter(dimob_vec) %>% head(1) %>% select(start) %>% unlist(), NA)
   mdat[i, "dimob_stop"] <- ifelse(any(dimob_vec),
@@ -239,13 +292,14 @@ mdat <- mdat %>%
     # mutate(ex = ifelse(grepl("prophet", id) & prophet_hit == 1, "YAY", 
   #                    ifelse(!grepl("prophet", id) & prophet_hit == 0, "YAY", "sh%t"))) %>%
   # TL;DR : this is are 3 differences; two I should have called a hit, and one split hit that is shorter than the total.
+
 ```
 
 Having thoroughly mangled this dataframe, lets get rid of some of those extraneous columns.
 
 ```{r}
-keepers <- c("short_name","sequence","assessment","mynotes","status", "valid_locus_start",   "valid_locus_end" ,"prophet_hit", "dimob_hit")
-mdat <- mdat%>% select(keepers) %>%  View()
+keepers <- c("short_name","sequence","assessment","mynotes","status", "valid_locus_start",   "valid_locus_end" ,"prophet_hit", "dimob_hit", "enough_genes")
+clean_mdat <- mdat%>% select(keepers) 
 ```
 
 Now, we have our data in. 
@@ -253,8 +307,16 @@ Now, we have our data in.
 The "id" column holds the result from happie, with the criteria listed above. 
 
 ```{r}
+clean_mdat <- clean_mdat %>% mutate(
+  id = ifelse(prophet_hit == 1 & dimob_hit == 1, "dimob,prophet",
+             ifelse(prophet_hit == 1, "prophet",
+                    ifelse(dimob_hit == 1, "dimob", "na")))
+)
 
-ggplot(mdat, aes(x=id, fill=id)) + geom_histogram(stat="count") + coord_flip() + scale_fill_manual(values = c("grey80", "grey60", "grey40", "grey20"), guide=F)
+ggplot(clean_mdat, aes(x=id, fill=id)) + geom_histogram(stat="count") + coord_flip() + scale_fill_manual(values = c("grey80", "grey60", "grey40", "grey20"), guide=F) + labs(title="Counts of hits by ProphET, dimob, or both")
+
+ggplot(clean_mdat %>% filter(enough_genes), aes(x=id, fill=id)) + geom_histogram(stat="count") + coord_flip() + scale_fill_manual(values = c("grey80", "grey60", "grey40", "grey20"), guide=F) + labs(title="Counts of hits by ProphET, dimob, or both", subtitle="Loci with fewer than 7 CDSs were removed")
+
 
 ```
 
@@ -268,7 +330,7 @@ We can assess 4 difference scenarios
 4. genomes with phage, phage detected
 
 
-I realize I needed to have a column to add whether or not to include a row of the Casjens 2003 data.  Theres a bunch of messy rows (single genes, or very unclear notes), so I went back and added a column to address this.
+Dispite having assess which loci consist of fewer than 7 CDSs, I realize I needed to have a column to add whether or not to include a row of the Casjens 2003 data.  Theres a bunch of messy rows (single genes, or very unclear notes), so I went back and added a column to address this, based on the information provided in the description of the locus.
 
 the column has the following identifiers
 
@@ -283,10 +345,9 @@ the column has the following identifiers
 - missing: phages identified with happie but not in original work
 
 ```{r}
-ggplot(new_dat, aes(x=status, fill=status)) + geom_histogram(stat="count") + coord_flip() + scale_fill_discrete(guide=F)
+ggplot(clean_mdat, aes(x=status, fill=status)) + geom_histogram(stat="count") + coord_flip() + scale_fill_discrete(guide=F)
 ```
 
-I also reformated the "missing" column to be new rows for each entry.
 
 Ugh, this is getting messier by the minute.  Onward into the gap!
 
@@ -295,8 +356,8 @@ Next, I made a rough "result" column, reporting a conclusion for each entry.
 ```{r}
 
 valid_hit_categories <-  c("remnants", "partial", "intact", "intactish")
-
-new_dat <- new_dat %>% group_by(short_name) %>%
+valid_hit_categories <- unique(clean_mdat$status)[!unique(clean_mdat$status)  %in%c(NA, "na", "missing")]
+clean_mdat <- clean_mdat %>% group_by(short_name) %>%
   mutate(
     result = ifelse(
       (status %in% valid_hit_categories & !id %in% c("na")) , 
@@ -315,16 +376,16 @@ new_dat <- new_dat %>% group_by(short_name) %>%
       )
     )
   ) 
-new_dat %>% group_by(result) %>% summarise(n=n())
+clean_mdat %>% filter(enough_genes) %>% group_by(result) %>% summarise(n=n())
 ```
 
 Then, make some quick summary calcualtions:
 ```{r}
 # number of `valid_hit_categories` in happie data divided by those in benchmark
-sensitivity = (
+(sensitivity = (
   new_dat %>% filter(status %in% valid_hit_categories ) %>% filter(id != "na") %>% nrow() /
   new_dat %>% filter(status %in% valid_hit_categories ) %>% nrow() 
-)
+))
 
 specificity = (
   new_dat %>% filter(!status %in% valid_hit_categories ) %>% filter(!grepl("prophet", id)) %>% nrow() /
@@ -332,10 +393,10 @@ specificity = (
 )
 
 # how many sequences (chomasomes or plasmids) lacked prophages in our data divided by Casjens 2003
-specificity = (
+(specificity = (
   new_dat %>% filter(status == "na" ) %>% filter(id == "na") %>% nrow() /
   new_dat %>% filter(status == "na" ) %>% nrow() 
-)
+))
 
 ```
 
@@ -352,7 +413,7 @@ Together, we can see that ProphET successfully identifies that majority of the p
 ```{r}
 
 #ggplot(new_dat, aes(x=result, fill=result)) + geom_histogram(stat="count") + coord_flip() +scale_fill_discrete(guide=F)
-ggplot(new_dat, aes(x=result, fill=id)) + geom_histogram(stat="count") + coord_flip() + scale_fill_manual(values = c("red", "orange", "grey80", "yellow"))
+ggplot(clean_mdat %>% filter(enough_genes), aes(x=result, fill=id)) + geom_histogram(stat="count") + coord_flip() + scale_fill_manual(values = c("red", "orange", "grey80", "yellow"))
 
 ```
 
