@@ -1,14 +1,24 @@
 ---
-title: "validation"
+title: "Validating Happie's Phage Detection Scheme"
+date: "last update: `r format(Sys.Date(), format = '%d %B %Y')`" 
+author: "Nicholas Waters"
 output:
+  tufte::tufte_html: 
+    tufte_features: [ "italics"]
+  tufte::tufte_handout: default
   pdf_document: default
   html_document: default
 editor_options:
   chunk_output_type: console
+toc: true
+toc_float:
+  collapsed: false
+  smooth_scroll: true
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+#install.packages("tufte")
 # setwd("~/GitHub/happie/validation/")
 library(tidyverse)
 
@@ -18,34 +28,35 @@ library(IRanges)
 ```
 
 # Introduction:
-In order to determine the appropriateness of ProphET for detecting prophage content in the environmental (and clinical) *E. coli*, we will compare the results of our pipeline ("happie") to the supplementary data  from Dr. Sherwood Casjens' paper "Prophages and bacterial genomics: what have we learned so far?" <https://doi.org/10.1046/j.1365-2958.2003.03580.x>.
+In order to determine the appropriateness of ProphET for detecting prophage content in the environmental (and clinical) *E. coli*, we will compare the results of our pipeline ("happie") to the supplementary data  from Dr. Sherwood Casjens' paper "Prophages and bacterial genomics: what have we learned so far?"^[ <https://doi.org/10.1046/j.1365-2958.2003.03580.x>].
 
-Happie uses ProphET as its primary phage detection tool, after comparing with the other state-of-the-art tools in the analysis described here: <https://nickp60.github.io/weird_one_offs/testing_3_prophage_finders/>.  Additionally, happie uses IslandPAth-DIMOB to detect genomic islands, which sometimes (but not always) are phage-related.  Here, we descibe how the results from happie compare with the results from Casjens 2003.
+Happie uses ProphET as its primary phage detection tool, after comparing with the other state-of-the-art tools in the analysis described previously^[ <https://nickp60.github.io/weird_one_offs/testing_3_prophage_finders/>].  Additionally, happie uses IslandPAth-DIMOB to detect genomic islands, which sometimes (but not always) are phage-related.  Here, we descibe how the results from happie compare with the results from Casjens 2003.
 
-## Data
+# Data
 
 All the data and scripts can be found at <https://github.com/nickp60/happie/>, under the *validation* directory.
 
-We downloaded the word doc of the supplementary data table from Casjens 2013, *mmi_3580_sm_tables1.doc* (its always a .doc) and then transformated that into a slightly less terrible excel file *casjen2003.xlsx*[sic]. This new table we added a link to the genome on NCBI, and an FTP path to download the genome (in FASTA format, oops). This was difficult, as between 2003 and now, everything from gene names to taxonomy changed.  The original link to the genomes repository at Venter is broken, and so I had to spend a fair amount of time manually combing the databases for likely strains. Of additional help is the following document, from PhageFinder: <http://phage-finder.sourceforge.net/302_bact_gen.pdf>. Only 1 of these I was unable to locate, either due to not finding the genome itself, or the locus tags having changed so much that no comparison was possible.
+We downloaded the word doc of the supplementary data table from Casjens 2013, *mmi_3580_sm_tables1.doc* (why are tables in a .doc) and then transformated that into a slightly less terrible excel file *casjen2003.xlsx*[sic]. This new table we added a link to the genome on NCBI, and an FTP path to download the genome. This was difficult, as between 2003 and now, everything from gene names to taxonomy changed.  The original link to the genomes repository at Venter is broken, and so I had to spend a fair amount of time manually combing the databases for likely strains. Of additional help is the following document, from PhageFinder: <http://phage-finder.sourceforge.net/302_bact_gen.pdf>. Only 1 of the entries I was unable to locate,  due to not finding the genome itself, or the locus tags having changed so much that no comparison was possible.
 
- The missing genome:
- 
-- Xanthomonas axonopodis 903
+ The missing genome: Xanthomonas axonopodis 903.
 
 
-I then started reading in the file, tidying the data, and munging FTP paths to the genbank files so that we could view the annotations and locus tags.
-
-
-_NOTE_: due to a git mishap, I lost the version of casjen2003.xlsx that had ftp paths; the paths were there when (below) I created the casjen2003_newloci.xlsx file, so those can be consulted instead.
-```{r, eval=FALSE}
-
-
-dat <- readxl::read_xlsx("./casjen2003.xlsx", sheet = 2)
-dat <- dat %>% fill(host, assembly) #%>% View()
-
+```{marginfigure}
+Due to a git mishap, I lost the version of casjen2003.xlsx that had ftp paths; the paths were there when (below) I created the ~casjen2003_newloci.xlsx~ file, so those can be consulted instead.
 ```
 
-Then, for testing, I downloaded one of these genomes:
+
+<!-- ```{r, eval=FALSE} -->
+
+
+<!-- dat <- readxl::read_xlsx("./casjen2003.xlsx", sheet = 2) -->
+<!-- dat <- dat %>% fill(host, assembly) #%>% View() -->
+
+<!-- ``` -->
+
+
+
+To see if the listed locus tags corresponded with the locus tags in the genbank file, I downloaded one of these genomes:
 
 ```{r, eval=FALSE}
 dir.create("genomes")
@@ -58,26 +69,29 @@ if (!file.exists(test_file_path)){
 }
 ```
 
-Now, for this genome, we need to see if a locus tag given ("AgrC0835"") actually match whats in the file.  They dont in this case (old locus tag is "Agr_C_835"). The fun continues: some had different cases, issues with leading 0's, missing locus tags, and more. A quick back-of-the-envelope assessment hinted that the time spent trying to parse would be too high; these must be added manually.
+Now, for this genome, we need to see if a locus tag given ("AgrC0835"") actually match whats in the file.  They dont in this case^[old locus tag is "Agr_C_835"]. The fun continues: some had different cases, issues with leading 0's, missing locus tags, and more. A quick back-of-the-envelope assessment hinted that the time spent trying to parse would be too high; these must be added manually.
 
 
 We need a new copy of the table to annotate, and after making this file, I added FTP paths for all the assemblies.
 
-```{r, eval=FALSE}
+```{r, eval=T}
 file.copy(from = "./casjen2003.xlsx", to="./casjen2003_newloci.xlsx", overwrite = F)
-
-new_dat <- readxl::read_xlsx("./casjen2003_newloci.xlsx", sheet = 2)
-# 
+# sheet 2 I mannually added any prophet hits that were absent in original data
+new_dat <- readxl::read_xlsx("casjen2003_newloci.xlsx", sheet = 3)
+# fill down columns
 new_dat <- new_dat %>% fill(host, ftp, assembly, sequence, n) 
-# new_dat$short_name <- gsub("\\(", "", gsub("\\)", "",  gsub("\\.", "", gsub("\\s+", "_", new_dat$host ))))
+
+# simplify name
 new_dat$short_name <- gsub("\\W+", "_", new_dat$host )
+# seqname is used to compare later to GFFs
 new_dat$seqname <-  gsub("(.*)\\..*", "\\1", new_dat$sequence)
+# create a path to the genbank file from the fasta file
 new_dat$ftp_gbk <- gsub(".fna.gz", ".gbff.gz", new_dat$ftp)
 
 ```
 
 
-So, I downloaded all the genomes:
+I downloaded all the genomes to a folder called `genomes`:
 ```{r eval=F}
 for (i in 1:nrow(new_dat)){
   test_file_path <- file.path("genomes", paste0(new_dat$short_name[i], ".gbk"))
@@ -93,11 +107,15 @@ for (i in 1:nrow(new_dat)){
 
 Next I had the enviable jot of going entry by entry, and trying to find the annotated phage region's coords now that the locus tags are different.  In practice, this meant finding the first and last listed locus tags (or the next one, if the first could not be found), and entering in the start or end coord, respectively.
 
+```{marginfigure}
 Occasionally (such as for E. coli EDL933) I would have to get the RefSeq (GCA) version of the Genbank (GCF) version, as the locus tags failed to match.
+```
+
 
 Escherichia coli O157:H7 EDL933 appeared to be using locus tag nomencalture from another organisms, so I had to skip that one.  Genes that were from the same operon had locus tags scattered in distant parts of this genome, in contrast to what was reported in Casjens 2003.
 
 I was unable to match annotations for the following organisms:
+
 - Escherichia coli O157:H7 EDL933
 - Mesorhizobium loti MAFF303099
 
@@ -106,45 +124,55 @@ In some cases, the excel file was modified to fix naming issues: for instance, I
 In instances of just single genes annotated, I just took the first one's start and end coords; we will ignore these downstream, as the table mentions every integrase, even if not in a phagey region.
 
 In the meantime, I ran happie on all those genomes, and prettied up the results, combining them into a single results file:
+
+<!-- counter=0;for i in ./genomes/*.gbk; do echo $counter $i; name=$(basename ${i%.*}); if [ -d "${name}_casjens" ] ; then echo "skipping ${name}"; else happie --contigs $i -o ${name}_casjens ; fi ; counter=$((counter+1)); done -->
+
 ```{sh, eval=FALSE}
 counter=0; 
-for i in ./genomes/*.gbk; do echo $counter $i; name=$(basename ${
-i%.*}); if [ -d "${name}_casjens" ] ; then echo "skipping ${name}"; else happie --contigs $i -o ${name}_casjens ; fi ; counter=$((counter+1)); done
+for i in ./genomes/*.gbk; 
+do 
+  echo $counter $i;
+  name=$(basename ${i%.*}); 
+  if [ -d "${name}_casjens" ] ; 
+  then 
+    echo "skipping ${name}"; 
+  else 
+    happie --contigs $i -o ${name}_casjens ; 
+  fi ; 
+  counter=$((counter+1)); 
+done
 cat ./*/mobile_genome_coords >> combined_happie_coords
-# edit -- removed loti, see above
-#mv Mesorhizobium_loti_____MAFF303099_casjens/mobile_genome_coords Mesorhizobium_loti_____MAFF303099_casjens/ignored_mobile_genome_coords
-#mv Escherichia_coli_O157\:H7_EDL933_casjens/mobile_genome_coords Escherichia_coli_O157\:H7_EDL933_casjens/ignored_mobile_genome_coords
-rm combined_happie_coords; cat ./*/mobile_genome_coords >> combined_happie_coords
 
 ```
 
 
-
-## evaluating success
-I had to do a bit of munging file names to make sure all the names line up.  Inititally, I thought I moght be able to programatically assess hits (ie, how well happie results compared to the published data), so I needed to make sure the names matched up.
+# Evaluating Results
+I had to do a bit of munging file names to make sure all the names line up. 
 
 <!-- After another round of time-estimation, I decided to score hits by hand, with the following criteria. -->
-Previous verison of this script replied on hand-assessed overlaps in a "staus" column, but this was converted to IRanges assessment.There was extremely good agreement between the hand-scored results and the machine-scored results, but as there were a few missed by hand and detected with IRanges, I used that exclusivbely from here on out, with the following criteria.
+Previous verison of this script replied on hand-assessed overlaps in a "status" column, but this was converted to IRanges assessment.There was extremely good agreement between the hand-scored results and the machine-scored results, but as there were a few missed by hand and detected with IRanges, I used that exclusivbely from here on out, with the following criteria.
 
-- A hit would be considered valid of the majority of the sequence overlapped.  This is a fuzzy (and probably generous) estimation, but neccessary as the paper reports everything they found, from single genes to two intact and neighboring prophages.In some cases, the prophet hit was entirely contained within the reported hit (see Ralstonia_solanacearum_GMI1000, NC_003295.1,879632-93943);  keeping a hard scoring threshold would result in accurately reporting the detection, so we changed the length threshold to a more generous definition: greater than half the length of (min(subject_end-subject_start, query_end-query_start)).  
-- See the docs for definition of overlaps: <https://www.rdocumentation.org/packages/IRanges/versions/2.0.1/topics/findOverlaps-methods> .  I used the "any" type.
-- a new entry was added with "na" for hits identified with ProphET (or ProphET and DIMOB, but not just DIMOB) but not in Casjens 2003
+- A hit would be considered valid of the majority of the sequence overlapped.  This is a fuzzy (and probably generous) estimation, but neccessary as the paper reports everything they found, from single genes to two intact and neighboring prophages.In some cases^[see Ralstonia_solanacearum_GMI1000, NC_003295.1,879632-93943], the prophet hit was entirely contained within the reported hit;  keeping a hard scoring threshold would result in accurately reporting the detection, so we changed the length threshold to a more generous definition: greater than half the length of $min(subject\_end-subject\_start, query\_end-query\_start)$.  
+- See the docs^[<https://www.rdocumentation.org/packages/IRanges/versions/2.0.1/topics/findOverlaps-methods> ] for definition of overlaps.  I used the "any" type.
 
+
+We read in the combined results file.  As happie does not report entries for those lacking hit, we manually created dummy rows to add the results table:
+```{bash, eval=FALSE}
+### get those that had empty results files to make dummy entries
+for i in ./*/; do if [ ! -s "${i}mobile_genome_coords" ]; then echo $i; fi done
+```
 
 ```{r}
 happie_dat_raw <- read.csv("combined_happie_coords", sep="\t", header = F, col.names =c("path", "program", "type", "sequence", "start", "stop"), stringsAsFactors = F)
 
-### get those that had empty results files to make dummy entries
-#
-# for i in ./*/; do if [ ! -s "${i}mobile_genome_coords" ]; then echo $i; fi done
 # These lacked phage hits in Casjens 2003
 missing_include <- c(
   "Buchnera_aphidicola_Ap_casjens/",
   "Buchnera_aphidicola_Bp_casjens/",
   "Buchnera_aphidicola_Sg_casjens/",
-  "Mycoplasma_genitalium_G-37_casjens/",
+  "Mycoplasma_genitalium_G_37_casjens/",
   "Mycoplasma_pneumoniae_M129_casjens/")
-# these were missing data; see above. either the annotations were missing or the genome was
+# these were missing data; see above. either the annotations were missing or the genome itself was
 missing_exclude <- c(
   "Escherichia_coli_O157_VT-2_Sakai_casjens/",
   "Mesorhizobium_loti_____MAFF303099",
@@ -161,35 +189,23 @@ tmp <- data.frame(
 happie_dat <- rbind(happie_dat_raw, tmp)
 happie_dat$short_name <- gsub("\\/(.*?)\\/(.*?)\\/(.*?)\\/(.*?)\\/(.*?)\\/(.*?)\\/(.*)", "\\6", happie_dat$path)
 happie_dat$short_name <- gsub("_casjens", "", happie_dat$short_name)
+
 # I cant seem to nest by program name, so I have to filter
 prophet_nested = happie_dat %>% filter(program=="prophet") %>% group_by(short_name, sequence) %>% nest(.key="prophet", start, stop)
 dimob_nested = happie_dat %>% filter(program=="dimob") %>% group_by(short_name, sequence)%>% nest(.key="dimob", start, stop)
 
 nested_happie <- full_join(prophet_nested, dimob_nested, by=c("short_name", "sequence"))
 
-
-
-
-
-#new_dat <- readxl::read_xlsx("./casjen2003_newloci.xlsx", sheet = 2)
-# 
-#new_dat <- new_dat %>% fill(host, ftp, assembly, sequence, n) 
-#new_dat$short_name <- gsub("\\(", "", gsub("\\)", "", gsub(" ", "_", new_dat$host )))
-#new_dat$seqname <-  gsub("(.*)\\..*", "\\1", new_dat$sequence )
-
-
-# remove the genomes we couldnt use; this is done by default now
-# new_dat <- new_dat[!new_dat$short_name %in% missing_exclude,]
-# These is our check
+# These is our check to see if the merge will be successful, that the names will be matching
 new_dat$short_name[!(new_dat$short_name %in% happie_dat$short_name)]
 happie_dat$short_name[!(happie_dat$short_name %in% new_dat$short_name)]
-
-
 ```
-### getting the number of genes in a given locus
-The criteria used by ProphET, Phage_Finder, etc included a filtering step to remove any loci of less than 7 CDS's from the Casjens table.  To do this, we first needed to convert the GenBank files to GFF, for use with bedtools
 
-```bash
+
+## Genes per Loci
+The criteria used by ProphET, Phage_Finder, etc included a filtering step to remove any loci of less than 7 CDS's from the Casjens table.  To do this, we first needed to convert the GenBank files to GFF, for use with readseq^[<http://iubio.bio.indiana.edu/cgi-bin/readseq.cgi>]:
+
+```{bash, eval=FALSE}
 # gbk to gff conversion
 conda install readseq
 mkdir genomes_gffs;for i in genomes/*.gbk; do bn=$(basename "$i"); filename="${bn%.*}" ; echo $filename; readseq -f 24 $i -o genomes_gffs/${filename}.gff ; done
@@ -197,25 +213,51 @@ mkdir genomes_gffs;for i in genomes/*.gbk; do bn=$(basename "$i"); filename="${b
 ```
 And then reading in the GFF files, in one of the least efficient ways possible. 
 
-```{r}
+```{r, echo=TRUE, results="hide"}
 new_dat$n_genes <- NA
 nrows <-nrow(new_dat)
 for (i in 1:nrow(new_dat)){
-print(paste(i, "of", nrows))
-path = file.path("genomes_gffs", paste0(new_dat$short_name[i], ".gff")) 
-this_gff <- read.csv2(path,  comment.char = "#", header=F, sep="\t", col.names = c("seqname",	"source",	"feature",	"start",	"end",	"score",	"strand",	"frame",	"attributes")) %>% filter(feature=="CDS")
+  print(paste(i, "of", nrows))
+  path = file.path("genomes_gffs", paste0(new_dat$short_name[i], ".gff")) 
+  this_gff <- read.csv2(
+    path,  comment.char = "#", header=F, sep="\t", 
+    col.names = c("seqname",	"source",	"feature",	"start",	"end",	
+                  "score",	"strand",	"frame",	"attributes")
+  ) %>% filter(feature=="CDS")
 
-new_dat$n_genes[i] <- this_gff %>% filter(seqname == new_dat$seqname[i]) %>% filter(start >= new_dat$valid_locus_start[i] & end <= new_dat$valid_locus_end[i]) %>%nrow()
+  new_dat$n_genes[i] <- this_gff %>% 
+    filter(seqname == new_dat$seqname[i]) %>% 
+    filter(start >= new_dat$valid_locus_start[i] & 
+             end <= new_dat$valid_locus_end[i]) %>%
+    nrow()
 }
 
-new_dat$enough_genes <- new_dat$n_genes > 7
+new_dat$enough_genes <- new_dat$n_genes >= 7
 ```
-HEre we can see that only `r table(new_dat$enough_genes)[[2]]` of the `r nrow(new_dat)` had loci longer than 
+
+Here we can see that only `r table(new_dat$enough_genes)[[2]]` of the `r nrow(new_dat)` had loci of at least 7 CDSs.
+
+## Discrepancies between reports
+
+The data contrained in the `casjens_neewloci.xlsx` shows a total of `r new_dat %>% nrow()` 251 entries, from `r length(unique(new_dat$short_name))` organisms. `r new_dat %>% filter(enough_genes) %>% nrow()`, after removing those with CDSs having fewer than 7 genes (from now `r nrow(unique(new_dat %>% filter(enough_genes) %>% select(short_name)))` organisms). ACLAME (prophinder) claims to used the same data, although they list 54 organisms, and say that there are 329^[http://aclame.ulb.ac.be/Tools/Prophinder/evaluations_table.html] prophages in the dataset, filtered down to 287 after removing those with fewer than 7 genes; they report a sensitivity and positive predicted value (PPV) of .78 and .95, respectively.  The ProphET paper claims they use the same dataset, although they calculate a sensitivity and PPV of .72 and .75 with Prophinder.  
+
+In conclusion:
+
+- Casjens 2003 apparently describes either 78, 54, or 47 organisms
+- ProphET and Prophinder report Prophinder's seensitivity and PPV very differently
+- Neither ProphET nor Prophinder release the dataset that they actually use, instead relying on another tool's^[Phage_finder] supplementary table that they filter according to Casjens table
+- Maybe if the original supplementary table hadn't been stored in a word doc, some of this confusion could have been avoided.
+
+So, take any tool comparison with large lumpy grain of salt, all because people don't release their evaluation data.
 
 
+
+## Merging Data and scoring regiongs 
+
+First, we grouped the happiee results with the correct sequence, using a clunky manner of nesting hits into a single column.  while this is far from ideal, IRanges worked better with this approach, as it struggles with certain operations involving missing data.  We then identified potential hits that will be later filtered.
 ```{r}
 #merged
-mdat_pre <-left_join(x=new_dat, y=nested_happie, by=c("short_name", "sequence"))
+mdat_pre <- left_join(x=new_dat, y=nested_happie, by=c("short_name", "sequence"))
 
 # make columns with the any hits for prophet or dimob, indexing into the nested coords
 mdat <- mdat_pre %>%
@@ -257,16 +299,15 @@ for (i in 1:nrow(mdat)){
 
 ```
 
-We have the coordinates of possible hits at this point, now lets filter by length, Again, we cant do this ealrier, cause we want to have an overlap over half the length of either the subject or the query, not jsut one.  This we we could get all these hits:
+We have the coordinates of possible hits at this point, now lets filter by length, Again, we cant do this ealrier, cause we want to have an overlap over half the length of either the subject or the query, not just one.  This we we could get those these types of hits:
 
-```{bash eval=FALSEe}
----------------0000000000---------------- ref
-------------ooooooooo----------------------- 
-----------------ooooooo---------------------- 
--------------------ooooooooooo
+```{bash eval=FALSE}
+---------------00000000000---------------- ref
+------------oooooooooo-------------------- overlap > 1/2 of ref
+----------------ooooo--------------------- overlap < 1/2 ref but > 1/2 query
 ```
 
-
+We initally calcualted the detection confusion matrix as follows, counting anything as a positive hit so long as met the above criteria. 
 ```{r}
 mdat <- mdat %>%
   group_by(short_name, sequence, valid_locus_start) %>%
@@ -286,36 +327,123 @@ mdat <- mdat %>%
         IRanges(dimob_start, dimob_stop),
         IRanges(valid_locus_start, valid_locus_end),
         type="any", 
-        minoverlap = min(dimob_stop-dimob_start, valid_locus_end-valid_locus_start)/2)))
-  # select(short_name, sequence, valid_locus_start, valid_locus_end, id, prophet_hit) %>%
-  # need to check against manually done results?  Here
-    # mutate(ex = ifelse(grepl("prophet", id) & prophet_hit == 1, "YAY", 
-  #                    ifelse(!grepl("prophet", id) & prophet_hit == 0, "YAY", "sh%t"))) %>%
-  # TL;DR : this is are 3 differences; two I should have called a hit, and one split hit that is shorter than the total.
-
+        minoverlap = min(dimob_stop-dimob_start,        
+                         valid_locus_end-valid_locus_start)/2)))
 ```
+
 
 Having thoroughly mangled this dataframe, lets get rid of some of those extraneous columns.
 
 ```{r}
-keepers <- c("short_name","sequence","assessment","mynotes","status", "valid_locus_start",   "valid_locus_end" ,"prophet_hit", "dimob_hit", "enough_genes")
+keepers <- c("short_name","sequence", "status", "valid_locus_start",   "valid_locus_end" ,"prophet_hit", "dimob_hit", "prophet", "enough_genes", "prophet_start", "prophet_stop")
 clean_mdat <- mdat%>% select(keepers) 
 ```
 
-Now, we have our data in. 
+
+With detection tools, scoring True Negatives comes with a set of caveats, as having a reliable set of such true negatives is often impossible. For prophage detection, this would require having a set of sequences that are of similar length and sequence composition to phages without being an actual prophage. Not being able to calculate true negatives rules out calculating specifity.  As such, looking back at the ProphET paper, they calculalte sensitivity and Positive Predictive Value as follows:
+
+
+> We  considered  as  true  positives (TP) the overall length  of  the overlap  between  prophage  predictions  and the  gold  standard;false positives (FP) as the overall length of predictions that do not overlap with the gold standard; false negatives (FN) as the overall length of regions of the gold standard that  were  not  included  in  the  predictions  (Supplemental  Figure S3). The  sensitivity (TP / TP + FN)  and  positive  predictive  value  or  PPV  (TP / TP + FP) were computed and compared to those obtained by Prophinder and PHAST.
+
+
+```{r}
+
+for (s in unique(clean_mdat$sequence)){
+  subst <- clean_mdat[clean_mdat$sequence == s,]
+  # subst <- clean_mdat[clean_mdat$short_name == clean_mdat$short_name[4], ]
+  prophet_hits <- subst$prophet[[1]]
+  #if (is.null(prophet_hits))
+  if (!is.null(prophet_hits)){
+    for (j in 1:nrow(prophet_hits)){
+      hit <- prophet_hits[j, ] 
+      if (! hit$start %in% subst$prophet_start){
+        print("adding row")
+        new_row <- subst[1,]
+        new_row$status <- "missing"
+        new_row$prophet_start <- hit$start
+        new_row$prophet_stop <- hit$stop
+        new_row$valid_locus_start <- NA
+        new_row$valid_locus_end <- NA
+        new_row$prophet_hit <- 1
+        new_row$enough_genes <- T
+        clean_mdat<-rbind(clean_mdat, new_row)
+      }
+    }
+  }
+}
+
+
+# this isn't vectorized cause IRanges doesn't play nicely with vectors involving NAs.
+for (i in 1:nrow(clean_mdat)){
+  this_row <- clean_mdat[i,]
+  if (!is.na(this_row$prophet_start) &
+      !is.na(this_row$valid_locus_start) &
+      !is.na(this_row$prophet_stop) & 
+      !is.na(this_row$valid_locus_end)){
+    clean_mdat[i, "assessment"] <- "TP"
+    clean_mdat[i, "assessment_range"] <- IRanges::intersect(
+        IRanges(this_row$prophet_start, this_row$prophet_stop),
+        IRanges(this_row$valid_locus_start, 
+                this_row$valid_locus_end))@width
+  } else if (!is.na(this_row$prophet_start) &
+             is.na(this_row$valid_locus_start)) {
+    clean_mdat[i, "assessment"] <- "FP"
+    clean_mdat[i, "assessment_range"] <- IRanges(
+      this_row$prophet_start, this_row$prophet_stop)@width
+
+  } else if (
+    this_row$status != "na" &
+    !is.na(this_row$valid_locus_start) &
+    is.na(this_row$prophet_start)){
+    clean_mdat[i, "assessment"] <- "FN"
+    clean_mdat[i, "assessment_range"] <- IRanges(
+      this_row$valid_locus_start, this_row$valid_locus_end)@width
+  } else {
+  clean_mdat[i, "assessment"] <- "other"
+  clean_mdat[i, "assessment_range"] <- 0 
+  }
+}
+
+calc_summary <- function(df){
+  TP_sum <- df %>% 
+    ungroup() %>% 
+    filter(assessment == "TP") %>%
+    summarize(sum=sum(assessment_range))
+
+  FP_sum <- df %>% 
+    ungroup() %>% 
+    filter(assessment == "FP") %>%
+    summarize(sum=sum(assessment_range))
+  
+  FN_sum <- df %>% 
+    ungroup() %>% 
+    filter(assessment == "FN") %>%
+    summarize(sum=sum(assessment_range))
+  sensitivity = TP_sum$sum/(TP_sum$sum + FN_sum$sum)
+  PPV = TP_sum$sum/(TP_sum$sum + FP_sum$sum)
+
+  print(paste("Sensitivity:", sensitivity))
+  print(paste("Positive Predictive Value:", PPV))
+}
+calc_summary(clean_mdat %>% filter(enough_genes))
+```
+
+
+
+
+
 
 The "id" column holds the result from happie, with the criteria listed above. 
 
-```{r}
+```{r fig.margin = TRUE}
 clean_mdat <- clean_mdat %>% mutate(
   id = ifelse(prophet_hit == 1 & dimob_hit == 1, "dimob,prophet",
              ifelse(prophet_hit == 1, "prophet",
                     ifelse(dimob_hit == 1, "dimob", "na")))
 )
+ggplot(clean_mdat, aes(x=id, fill=id)) + geom_histogram(stat="count") + coord_flip() + scale_fill_manual(values = c("grey80", "grey60", "grey40", "grey20"), guide=F) + labs(title="Counts of hits by ProphET, dimob, or both") + theme(text=element_text(size=22))
 
-ggplot(clean_mdat, aes(x=id, fill=id)) + geom_histogram(stat="count") + coord_flip() + scale_fill_manual(values = c("grey80", "grey60", "grey40", "grey20"), guide=F) + labs(title="Counts of hits by ProphET, dimob, or both")
-
-ggplot(clean_mdat %>% filter(enough_genes), aes(x=id, fill=id)) + geom_histogram(stat="count") + coord_flip() + scale_fill_manual(values = c("grey80", "grey60", "grey40", "grey20"), guide=F) + labs(title="Counts of hits by ProphET, dimob, or both", subtitle="Loci with fewer than 7 CDSs were removed")
+ggplot(clean_mdat %>% filter(enough_genes), aes(x=id, fill=id)) + geom_histogram(stat="count") + coord_flip() + scale_fill_manual(values = c("grey80", "grey60", "grey40", "grey20"), guide=F) + labs(title="Counts of hits by ProphET, dimob, or both", subtitle="Loci with fewer than 7 CDSs were removed") + theme(text=element_text(size=22))
 
 
 ```
@@ -334,7 +462,7 @@ Dispite having assess which loci consist of fewer than 7 CDSs, I realize I neede
 
 the column has the following identifiers
 
-- intact:  metadata says its excisable, inducible, or filimenetous
+- intact:  metadata says its excisable, inducible, or filimentous
 - intactish: usually described as X-like, meaning its similar to known family of prophage
 - partial: a phagey looking operon, but likely missing genes needed for function
 - fragments: one or more phage gene
@@ -344,12 +472,10 @@ the column has the following identifiers
 - unknown: no annotation or annotation unclear
 - missing: phages identified with happie but not in original work
 
-```{r}
-ggplot(clean_mdat, aes(x=status, fill=status)) + geom_histogram(stat="count") + coord_flip() + scale_fill_discrete(guide=F)
+```{r  fig.margin = TRUE, warning=FALSE}
+ggplot(clean_mdat, aes(x=status, fill=status)) + geom_histogram(stat="count") + coord_flip() +
+  labs(title="Phage Metadata") + scale_fill_discrete(guide=F) + theme(text=element_text(size=22))
 ```
-
-
-Ugh, this is getting messier by the minute.  Onward into the gap!
 
 
 Next, I made a rough "result" column, reporting a conclusion for each entry.
@@ -364,7 +490,7 @@ clean_mdat <- clean_mdat %>% group_by(short_name) %>%
       "True Positives",
       ifelse(
         (status %in% c("na") & id %in% c("na")),
-        "True Negatives",
+        "'True Negatives'",
         ifelse(
           (status %in% valid_hit_categories & id %in% c("na")),
           "False Negatives",
@@ -379,36 +505,6 @@ clean_mdat <- clean_mdat %>% group_by(short_name) %>%
 clean_mdat %>% filter(enough_genes) %>% group_by(result) %>% summarise(n=n())
 ```
 
-Then, make some quick summary calcualtions:
-```{r}
-# number of `valid_hit_categories` in happie data divided by those in benchmark
-(sensitivity = (
-  new_dat %>% filter(status %in% valid_hit_categories ) %>% filter(id != "na") %>% nrow() /
-  new_dat %>% filter(status %in% valid_hit_categories ) %>% nrow() 
-))
-
-specificity = (
-  new_dat %>% filter(!status %in% valid_hit_categories ) %>% filter(!grepl("prophet", id)) %>% nrow() /
-  new_dat %>% filter(!status %in% valid_hit_categories ) %>% nrow() 
-)
-
-# how many sequences (chomasomes or plasmids) lacked prophages in our data divided by Casjens 2003
-(specificity = (
-  new_dat %>% filter(status == "na" ) %>% filter(id == "na") %>% nrow() /
-  new_dat %>% filter(status == "na" ) %>% nrow() 
-))
-
-```
-
-So we ended up with a sensitivity of `r sensitivity` and a specificity of `r specificity`.  These are not the most appropriate, as there a lot (`r new_dat %>% filter(result=="Unclear") %>% nrow()`) of our hits that end up in the "Unclear" category, as these could just be fragments, highly degraded prophage, single genes, etc.  
-
-## So whats the story with those "False Positives"?
-
-
-
-## conclusions
-Together, we can see that ProphET successfully identifies that majority of the phage regions mentioned in Casjens 2003.  Additionally, it identifies regions missing from that list;  given how conservative ProphET seemed in the previous comparison against pther phage ID tools, these regions are of interest, and may be true phages that are more easily identified now in 2019 with all the advances in viral phylogenitcs.  2003 was pre-HTS metagenomics era, and the first marine "metagenome" had just been sequenced (Brietbart 2002).  Research efforts like those from Roux, 2015 expanded the known viral diversity 10-fold (<https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4533152/>).  Given that ProphET uses a database updated on a rolling basis means that it it can take advantage of these recent findings.
-
 
 ```{r}
 
@@ -416,6 +512,47 @@ Together, we can see that ProphET successfully identifies that majority of the p
 ggplot(clean_mdat %>% filter(enough_genes), aes(x=result, fill=id)) + geom_histogram(stat="count") + coord_flip() + scale_fill_manual(values = c("red", "orange", "grey80", "yellow"))
 
 ```
+
+
+
+## So whats the story with those "False Positives"?
+
+We were left with a about 11 genomes that ProphET detected as phages that were not reported in Casjens 2013.
+
+```{r}
+clean_mdat %>% filter(status == "missing") %>% select(short_name, sequence,  prophet_start, prophet_stop)
+```
+
+Based on cursory annotation analysis, I would score these as follows:
+
+Phage:
+
+- Listeria_innocua 2430512 - 2446744
+- Salmonella_enterica_CT18 78071 -105813
+- Salmonella_enterica_CT18   1920890 - 1937407
+- Shigella_flexneri_2a_301  1092698 - 1103027
+- Xylella_fastidiosa_Temecula  1194756 - 1217907
+-  Xylella_fastidiosa_Temecula  1376468      1392763
+
+Not phage:
+
+- Clostridium acetobutylicum 3420036 - 3439785
+
+Unclear:
+
+- Bifidobacterium longum 1146734 - 1155184
+- Salmonella_enterica_CT18  719 - 19889
+
+Pathogenicity Island:
+
+- Staphylococcus_aureus_N315  1862786 - 1881935
+- Staphylococcus_aureus_Mu50 1940579 - 1959728
+
+## Conclusions
+
+Together, we can see that ProphET successfully identifies that majority of the phage regions mentioned in Casjens 2003.  Additionally, it identifies regions missing from that list;  given how conservative ProphET seemed in the previous comparison against pther phage ID tools, these regions are of interest, and may be true phages that are more easily identified now in 2019 with all the advances in viral phylogenitcs.  2003 was pre-HTS metagenomics era, and the first marine "metagenome" had just been sequenced (Brietbart 2002).  Research efforts like those from Roux, 2015 expanded the known viral diversity 10-fold (<https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4533152/>).  Given that ProphET uses a database updated on a rolling basis means that it it can take advantage of these recent findings.
+
+Assessing the performance of DIMOB alone would not yeild comparable results, as the tool is not strictly a phage detection tool.  Howver we can see that using it in conjunction with ProphET increases the PPV.  What this metric hides, however, are the DIMOB hits that are not phage-related. Because we do not have a good ground-truth dataset for genomic islands.  More information about DIMOB can be found in their 2018 publication^[<https://academic.oup.com/bioinformatics/article/34/13/2161/4904263>]
 
 
 
