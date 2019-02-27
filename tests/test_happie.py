@@ -48,6 +48,9 @@ class MpTestCase(unittest.TestCase):
         self.ref_mlplasmids = os.path.join(
             self.ref_dir,
             'results.txt')
+        self.spades_assembly = os.path.join(
+            self.ref_dir,
+            'contigs.fasta')
         self.maxDiff = 2000
         self.to_be_removed = []
         if not os.path.exists(self.test_dir):
@@ -55,15 +58,15 @@ class MpTestCase(unittest.TestCase):
 
     def test_parse_prophet_results(self):
         ref = [
-            ['prophet', 'prophage', 'AFDU01000019.1', 177, 24461],
-            ['prophet', 'prophage', 'AFDU01000019.1', 808102, 848966],
-            ['prophet', 'prophage', 'AFDU01000012.1', 216544, 249812],
-            ['prophet', 'prophage', 'AFDU01000012.1', 352274, 368386],
-            ['prophet', 'prophage', 'AFDU01000014.1', 159, 8432],
-            ['prophet', 'prophage', 'AFDU01000015.1', 385, 39315],
-            ['prophet', 'prophage', 'AFDU01000031.1', 57319, 73419],
-            ['prophet', 'prophage', 'AFDU01000005.1', 317383, 360232],
-            ['prophet', 'prophage', 'AFDU01000011.1', 2908, 15720]
+            ['prophet', 'prophages', 'AFDU01000019.1', 177, 24461],
+            ['prophet', 'prophages', 'AFDU01000019.1', 808102, 848966],
+            ['prophet', 'prophages', 'AFDU01000012.1', 216544, 249812],
+            ['prophet', 'prophages', 'AFDU01000012.1', 352274, 368386],
+            ['prophet', 'prophages', 'AFDU01000014.1', 159, 8432],
+            ['prophet', 'prophages', 'AFDU01000015.1', 385, 39315],
+            ['prophet', 'prophages', 'AFDU01000031.1', 57319, 73419],
+            ['prophet', 'prophages', 'AFDU01000005.1', 317383, 360232],
+            ['prophet', 'prophages', 'AFDU01000011.1', 2908, 15720]
         ]
         self.assertEqual(
             hh.parse_prophet_results(self.ref_prophet),
@@ -72,18 +75,18 @@ class MpTestCase(unittest.TestCase):
 
     def test_condensce_regions(self):
         all_results = [
-            ['prophet', 'prophage', 'A', '5', '10'],
-            ['prophet', 'prophage', 'A', '1', '15'],
-            ['prophet', 'prophage', 'B', '55', '66'],
-            ['prophet', 'prophage', 'B', '34', '100'],
-            ['mlplasmids', 'plasmid', '"A"', '0', '1214'],
+            ['prophet', 'prophages', 'A', '5', '10'],
+            ['prophet', 'prophages', 'A', '1', '15'],
+            ['prophet', 'prophages', 'B', '55', '66'],
+            ['prophet', 'prophages', 'B', '34', '100'],
+            ['mlplasmids', 'plasmids', '"A"', '0', '1214'],
         ]
         non_overlapping_results = hh.condensce_regions(all_results)
         print(non_overlapping_results)
 
     def test_parse_mlplasmids_results(self):
         ref = [
-            ['mlplasmids', 'plasmid', '"AFDU01000034.1"', '0', '1214'],
+            ['mlplasmids', 'plasmids', 'AFDU01000034.1', 1, 1214],
         ]
 
         self.assertEqual(
@@ -94,10 +97,10 @@ class MpTestCase(unittest.TestCase):
     def test_write_annotated_mobile_genome(self):
         outf = os.path.join(self.test_dir, "mobile_genome.fasta")
         all_results = [
-            ['prophet', 'prophage', 'AFDU01000019.1', '5', '10'],
-            ['prophet', 'prophage', 'AFDU01000005.1', '1', '15'],
-            ['prophet', 'prophage', 'AFDU01000012.1', '55', '66'],
-            ['prophet', 'prophage', 'AFDU01000031.1', '34', '100'],
+            ['prophet', 'prophages', 'AFDU01000019.1', 5, 10],
+            ['prophet', 'prophages', 'AFDU01000005.1', 1, 15],
+            ['prophet', 'prophages', 'AFDU01000012.1', 55, 66],
+            ['prophet', 'prophages', 'AFDU01000031.1', 34, 100],
         ]
 
         seq_length, cgview_entries = hh.write_annotated_mobile_genome(
@@ -105,6 +108,10 @@ class MpTestCase(unittest.TestCase):
             output_path=reference_mobile_genome_path,
             non_overlapping_results=non_overlapping_results,
             all_results=all_results)
+
+    def test_QC_bug(self):
+        args = Namespace(contigs=self.spades_assembly)
+        hh.QC_bug(args, min_length=10, max_length=100000000, cov_threshold=.2)
 
     # def test_remove_bad_contig(self):
     #     outfile = os.path.join(self.test_dir, "contigs_minus_NODE_2.fasta")

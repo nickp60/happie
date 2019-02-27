@@ -1,10 +1,13 @@
 # programs for happie pipeline
 programs:
   prokka:
-    version: latest
+    version: 1.13b
     maintainer: nickp60
+    # version: 1.13.3-01
+    # maintainer: ummidock
     name: prokka
     exe: null
+    # results: "/prokka/bin/prokka"
     results: null
   prophet:
     version: 1.14

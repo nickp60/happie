@@ -27,7 +27,9 @@ from . import shared_methods as sm
 
 def get_args():  # pragma: no cover
     parser = argparse.ArgumentParser(
-        description="extract the mobile elements for pangenome analysis",
+        description="extract the mobile elements for pangenome analysis;" +
+        "if running QC, check default values, as those are geared towards " +
+        "E. coli <https://enterobase.readthedocs.io/en/latest/pipelines/backend-pipeline-qaevaluation.html>",
         add_help=False)
     # contigs not needed if just re-analyzing the results
     parser.add_argument("--contigs", action="store",
@@ -57,6 +59,9 @@ def get_args():  # pragma: no cover
     optional.add_argument("-n", "--name", dest='name',
                           help="name of experiment; defaults to file name " +
                           "without extension.", default="test")
+    optional.add_argument("--skip_QC", dest='skip_QC',
+                          action="store_true",
+                          help="skip initial contig QC.")
     optional.add_argument("--skip_rename", dest='skip_rename',
                           action="store_true",
                           help="skip initial contig renaming.")
@@ -86,6 +91,22 @@ def get_args():  # pragma: no cover
                           "6 - analyze the results",
                           type=int,
                           default=1)
+    optional.add_argument("--QC_min_assembly", dest='QC_min_assembly',
+                          default=3700000,
+                          type=int,
+                          help="if running QC, minimum total assembly length; default: %(default)s")
+    optional.add_argument("--QC_max_assembly", dest='QC_max_assembly',
+                          default=6400000,
+                          type=int,
+                          help="if running QC, maximum total assembly length; default: %(default)s")
+    optional.add_argument("--QC_min_contig", dest='QC_min_contig',
+                          default=800,
+                          type=int,
+                          help="if running QC, minimum contig length; default: %(default)s")
+    optional.add_argument("--QC_min_cov", dest='QC_min_cov',
+                          default=0.2,
+                          type=float,
+                          help="if running QC, minimum coverage fraction of mean coverage; default: %(default)s")
     optional.add_argument("-h", "--help",
                           action="help", default=argparse.SUPPRESS,
                           help="Displays this help message")
@@ -313,7 +334,7 @@ def write_annotated_mobile_genome(contigs,seed, output_path,  all_results, non_o
             SeqIO.write(seqrec, outfasta, "fasta")
             SeqIO.write(seqrec, outgbk, "genbank")
     print("wrote out %i bases" % total_length)
-    return(total_length + 1, cgview_entries)
+    return(total_length, cgview_entries)
 
 
 def write_out_names_key(inA, inB, outfile):
@@ -356,6 +377,7 @@ def run_annotation(args, contigs, prokka_dir, images_dict, skip_rename=True,
                     outf, "fasta"
                 )
         args.contigs = dest_fasta
+        contigs = dest_fasta
     print("running prokka")
     prokka_cmd = make_containerized_cmd(
         args=args,
@@ -372,7 +394,7 @@ def run_annotation(args, contigs, prokka_dir, images_dict, skip_rename=True,
         scommand=str(
             "{infile} -o {outdir} --prefix {name} " +
             "--fast --cpus {cpus} 2> {log}").format(
-                infile=args.contigs,
+                infile=contigs,
                 outdir=prokka_dir,
                 name=args.name,
                 cpus=args.cores,
@@ -562,7 +584,7 @@ def make_cgview_tab_file(args, seqlen, cgview_entries):
     results = []
     header=[
         "#{}".format(args.name),
-        "%{}".format(seqlen),
+        "%{}".format(seqlen + 1),
         "!strand\tslot\tstart\tstop\ttype\tlabel\tmouseover\thyperlink"
     ]
     results.extend(header)
@@ -637,15 +659,87 @@ def read_in_yaml_args(outpath):
         new_args = yaml.load( outf)
     return new_args
 
+
 def recheck_required_args(args):
     if args.contigs is None:
         raise ValueError("no --contigs provided! see 'happie -h'")
+
 
 def coords_to_merged_gff(coords):
     all_coords = [x[3] for x in coords]
     all_coords.expand([x[4] for x in coords])
     mn, mx = min(all_coords), max(all_coords)
     pass
+
+
+def QC_bug(args, min_length, max_length, cov_threshold=.2, min_contig_length=800):
+    # check assembly size
+    log_strings = []
+    lengths = []
+    with open(args.contigs) as inf:
+        for rec in SeqIO.parse(inf, "fasta"):
+            lengths.append([rec.id, len(rec.seq)])
+    total_length = sum([x[1] for x in lengths])
+    log_strings.append("QC criteria -- see happy_args.yaml")
+    log_strings.append("QC'd " + str(len(lengths)) + " sequences")
+    log_strings.append("Assembly is" + str(total_length) + "bases")
+    if not min_length < total_length < max_length:
+        with open(os.path.join(args.output, "sublogs", "QC.log"), "w") as logoutf:
+            for s in log_strings:
+                logoutf.write(s + "\n")
+        raise ValueError(
+            "Assembly length {} falls outside of QC range of {} to {}".format(
+                total_length, min_length, max_length)
+    )
+    short_contigs = {x[0]: x[1] for x in lengths if
+                       x[1] < min_contig_length}
+    log_strings.append("Removed " + str(len(short_contigs)) + " short contigs ")
+
+    ncontigs = len(lengths)
+    # get SPAdes coverage
+    low_cov_contigs = {}
+    with open(args.contigs) as inf:
+        header_info = {}
+        for rec in SeqIO.parse(inf, "fasta"):
+            if not rec.id.startswith("NODE"):
+                log_strings.append("Warning: cannot QC by assembly coverage; " +
+                      "happie only parses SPAdes headers")
+                print(log_strings[-1])
+            else:
+                # NODE_1_length_10442_cov_5.92661
+                p = re.compile(r'NODE_(?P<node>\d*?)_length_(?P<length>\d*?)_cov_(?P<cov>[\d|\.]*)')
+                m = p.search(rec.id)
+                header_info[rec.id] = {
+                    "length": int(m.group("length")),
+                    "cov": float(m.group("cov"))
+                }
+    if header_info:
+        # this gets skipped if we didnt have spades headers
+        mean_coverage = sum([y['cov'] for x, y in header_info.items()])/ncontigs
+        low_cov_contigs = {x: y for x, y in header_info.items() if
+                       y['cov'] < (mean_coverage * cov_threshold)}
+    bad_contigs = {**short_contigs, **low_cov_contigs}
+    log_strings.append("Removed " + str(len(low_cov_contigs)) +
+                       " low covereage contigs ")
+    if bad_contigs:
+        print("the following contigs have too low loverage or are too short "
+              "and will be removed from the analysis")
+        print(bad_contigs)
+        # make a filtered file
+        outfile = os.path.join(
+            args.output,
+            os.path.basename(os.path.splitext(args.contigs)[0]) + "_filtered.fasta")
+        with open(args.contigs, "r") as inf, open(outfile, "w") as outf:
+            for rec in SeqIO.parse(inf, "fasta"):
+                if not rec.id in bad_contigs.keys():
+                    SeqIO.write(rec, outf, "fasta")
+        args.contigs = outfile
+    with open(os.path.join(args.output, "sublogs", "QC.log"), "w") as logoutf:
+        for s in log_strings:
+            logoutf.write(s + "\n")
+    if len(bad_contigs) >= ncontigs:
+        raise ValueError("All of the contigs are filtered out with the current criteria")
+
 
 def main(args=None):
     if args is None:
@@ -712,10 +806,17 @@ def main(args=None):
             args.contigs = fasta_version
         else:
             print("input is fasta")
-        print("running happie")
+        if not args.skip_QC:
+            QC_bug(
+                args,
+                min_length=args.QC_min_assembly,
+                max_length=args.QC_max_assembly,
+                cov_threshold=args.QC_min_cov,
+                min_contig_length=args.QC_min_contig)
+        print("running prokka")
         run_annotation(args, contigs=args.contigs, prokka_dir=prokka_dir,
                        images_dict=images_dict, skip_rename=args.skip_rename,
-                       new_name="tmp_original.fasta", log_dir=log_dir)
+                       new_name="postQC_input.fasta", log_dir=log_dir)
     else:
         # read in old config file, if it exists. for now we just get the old
         # path to the contigs, so you dont have to remember how exacly you ran
@@ -803,6 +904,9 @@ def main(args=None):
         output_path=mobile_genome_path_prefix,
         non_overlapping_results=non_overlapping_results,
         all_results=all_results)
+    if seq_length == 0:
+        print("WARNING: none of the genome was detected to be mobile")
+        return 0
 
     tab_data = make_cgview_tab_file(args, cgview_entries=cgview_entries,
                                     seqlen=seq_length)
