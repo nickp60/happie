@@ -88,9 +88,17 @@ def get_args():  # pragma: no cover
                           "3 - run plasmid finders | " +
                           "4 - run genomic island finders | " +
                           "5 - run insertion sequences finder" +
-                          "6 - analyze the results",
+                          "6 - analyze the results " +
+                          "7 - run annofilt",
                           type=int,
                           default=1)
+    optional.add_argument("--skip_annofilt", dest="skip_annofilt",
+                          action="store_true",
+                          help="skip annotation filtering mobile genome with annofilt.")
+    optional.add_argument("--annofilt_reference", dest='annofilt_reference',
+                          help="if running annofilt, set this to the " +
+                          "species-specific pangnome for annotation " +
+                          "filtering")
     optional.add_argument("--QC_min_assembly", dest='QC_min_assembly',
                           default=3700000,
                           type=int,
@@ -120,7 +128,7 @@ def get_args():  # pragma: no cover
 def test_exes(exes):
     for exe in exes:
         if shutil.which(exe) is None:
-            raise ValueError("%s executable not found")
+            raise ValueError("%s executable not found" % exe)
 
 
 
@@ -409,6 +417,41 @@ def run_annotation(args, contigs, prokka_dir, images_dict, skip_rename=True,
                    check=True)
 
 
+def run_annofilt(args, annofilt_dir, prokka_dir, images_dict, log_dir=None):
+    if os.path.exists(annofilt_dir):
+        print("removing old annofilt dir")
+        shutil.rmtree(annofilt_dir)
+    print("running annofilt")
+    annofilt_cmd = make_containerized_cmd(
+        args=args,
+        image=images_dict['annofilt']["image"],
+        sing=images_dict['annofilt']["sing"],
+        dcommand=str(
+            "/input/{ref} /input/{infile} -o /output/{outdir} " +
+            " --threads {cpus} 2> {log}").format(
+                ref=os.path.relpath(args.annofilt_reference),
+                infile=os.path.relpath(prokka_dir),
+                outdir=os.path.relpath(annofilt_dir),
+                cpus=args.cores,
+                log=os.path.join(log_dir, "annofilt.log")),
+        scommand=str(
+            "{ref} {infile} -o {outdir} " +
+            "--threads {cpus} 2> {log}").format(
+                ref=args.annofilt_reference,
+                infile=prokka_dir,
+                outdir=annofilt_dir,
+                cpus=args.cores,
+                log=os.path.join(log_dir, "annofilt.log"))
+
+    )
+    print(annofilt_cmd)
+    subprocess.run([annofilt_cmd],
+                   shell=sys.platform != "win32",
+                   stdout=subprocess.PIPE,
+                   stderr=subprocess.PIPE,
+                   check=True)
+
+
 def run_prophet(args, prokka, prophet_dir, images_dict, log_dir=None):
     if os.path.exists(prophet_dir):
         shutil.rmtree(prophet_dir)
@@ -663,6 +706,9 @@ def read_in_yaml_args(outpath):
 def recheck_required_args(args):
     if args.contigs is None:
         raise ValueError("no --contigs provided! see 'happie -h'")
+    if not args.skip_annofilt:
+        if args.annofilt_reference is None:
+            raise ValueError("If using annofilt, you must provide a species specific pangenome from whole genomes for comparison. See the annofilt documentaion for more details. <https://github.com/nickp60/annofilt/>")
 
 
 def coords_to_merged_gff(coords):
@@ -772,6 +818,8 @@ def main(args=None):
     mlplasmids_results = os.path.join(args.output, "mlplasmids", "results.txt")
     abricate_dir = os.path.join(args.output, "abricate", "")
     wgs_abricate_dir = os.path.join(args.output, "abricate_wgs", "")
+    annofilt_dir = os.path.join(args.output, "annofilt", "")
+    wgs_annofilt_dir = os.path.join(args.output, "annofilt_wgs", "")
     cgview_dir = os.path.join(args.output, "cgview", "")
     # make sub directories.  We don't care if they already exist;
     #  cause we clobber them later if they will cause problems for reexecution
@@ -866,68 +914,103 @@ def main(args=None):
         pass
         #run_dimob(args, prokka, island_results, images_dict)
 
-
+    if args.restart_stage < 7:
     ###########################################################################
     # program type sequence start end
-    all_results = []
-    results_list = []
-    if any([x=="prophages" for x in args.elements]):
-        if os.path.exists(prophet_results) and os.path.getsize(prophet_results) > 0:
-            prophet_parsed_result = parse_prophet_results(prophet_results)
-            all_results.extend(prophet_parsed_result)
-            results_list.append(prophet_parsed_result)
-    print(all_results)
-    if any([x=="plasmids" for x in args.elements]):
-        if os.path.exists(mlplasmids_results) and os.path.getsize(mlplasmids_results) > 0:
-            mlplasmids_parsed_result = parse_mlplasmids_results(mlplasmids_results)
-            all_results.extend(mlplasmids_parsed_result)
-            results_list.append(mlplasmids_parsed_result)
-    print(all_results)
-    if any([x=="islands" for x in args.elements]):
-        if os.path.exists(island_results) and os.path.getsize(island_results) > 0:
-            dimob_parsed_result = parse_dimob_results(island_results)
-            all_results.extend(dimob_parsed_result)
-            results_list.append(dimob_parsed_result)
-    # print(all_results)
-    non_overlapping_results = condensce_regions(all_results)
-    mobile_genome_path_prefix = os.path.join(args.output, "mobile_genome")
-    output_regions = os.path.join(args.output, "mobile_genome_coords")
-    with open(output_regions, "w") as outf:
-        for line in all_results:
-            outf.write(args.contigs + "\t" + "\t".join([str(x) for x in line]) + "\n")
-    output_key_path = os.path.join(args.output, "names_key")
-    write_out_names_key(inA=args.contigs, inB=prokka_fna,
-                        outfile=output_key_path)
-    seq_length, cgview_entries = write_annotated_mobile_genome(
-        seed=os.path.basename(args.contigs),
-        contigs=prokka_fna,
-        output_path=mobile_genome_path_prefix,
-        non_overlapping_results=non_overlapping_results,
-        all_results=all_results)
-    if seq_length == 0:
-        print("WARNING: none of the genome was detected to be mobile")
-        return 0
+        all_results = []
+        results_list = []
+        if any([x=="prophages" for x in args.elements]):
+            if os.path.exists(prophet_results) and os.path.getsize(prophet_results) > 0:
+                prophet_parsed_result = parse_prophet_results(prophet_results)
+                all_results.extend(prophet_parsed_result)
+                results_list.append(prophet_parsed_result)
+        print(all_results)
+        if any([x=="plasmids" for x in args.elements]):
+            if os.path.exists(mlplasmids_results) and os.path.getsize(mlplasmids_results) > 0:
+                mlplasmids_parsed_result = parse_mlplasmids_results(mlplasmids_results)
+                all_results.extend(mlplasmids_parsed_result)
+                results_list.append(mlplasmids_parsed_result)
+        print(all_results)
+        if any([x=="islands" for x in args.elements]):
+            if os.path.exists(island_results) and os.path.getsize(island_results) > 0:
+                dimob_parsed_result = parse_dimob_results(island_results)
+                all_results.extend(dimob_parsed_result)
+                results_list.append(dimob_parsed_result)
+        # print(all_results)
+        non_overlapping_results = condensce_regions(all_results)
+        mobile_genome_path_prefix = os.path.join(args.output, "mobile_genome")
+        output_regions = os.path.join(args.output, "mobile_genome_coords")
+        with open(output_regions, "w") as outf:
+            for line in all_results:
+                outf.write(args.contigs + "\t" + "\t".join([str(x) for x in line]) + "\n")
+        output_key_path = os.path.join(args.output, "names_key")
+        write_out_names_key(inA=args.contigs, inB=prokka_fna,
+                            outfile=output_key_path)
+        seq_length, cgview_entries = write_annotated_mobile_genome(
+            seed=os.path.basename(args.contigs),
+            contigs=prokka_fna,
+            output_path=mobile_genome_path_prefix,
+            non_overlapping_results=non_overlapping_results,
+            all_results=all_results)
+        if seq_length == 0:
+            print("WARNING: none of the genome was detected to be mobile")
+            return 0
 
-    tab_data = make_cgview_tab_file(args, cgview_entries=cgview_entries,
+        tab_data = make_cgview_tab_file(args, cgview_entries=cgview_entries,
                                     seqlen=seq_length)
-    cgview_data = os.path.join(args.output, "cgview.tab")
-    with open(cgview_data, "w") as outf:
-        for line in tab_data:
-            outf.write(line + "\n")
-    #########################################
-    # run abricate on both the mobile genome, and the entire sequence, for enrichment comparison
-    abricate_data = os.path.join(args.output, "abricate.tab")
-    run_abricate(args, abricate_dir, mobile_fasta=mobile_genome_path_prefix + ".fasta",
-                 images_dict=images_dict, all_results=abricate_data, log_dir=log_dir)
-    wgs_abricate_data = os.path.join(args.output, "wgs_abricate.tab")
-    run_abricate(args, wgs_abricate_dir, mobile_fasta=args.contigs,
-                 images_dict=images_dict, all_results=wgs_abricate_data, log_dir=log_dir)
-    if not args.skip_reannotate:
-        run_annotation(args, contigs=mobile_genome_path_prefix + ".fasta",
-                       prokka_dir=mobile_prokka_dir, images_dict=images_dict,
-                       skip_rename=False, new_name="tmp_mobile.fasta", log_dir=log_dir)
-
-    # run_cgview(args, cgview_tab=cgview_data, cgview_dir=cgview_dir, images_dict=images_dict)
+        cgview_data = os.path.join(args.output, "cgview.tab")
+        with open(cgview_data, "w") as outf:
+            for line in tab_data:
+                outf.write(line + "\n")
+        #########################################
+        # run abricate on both the mobile genome, and the entire sequence, for enrichment comparison
+        abricate_data = os.path.join(args.output, "abricate.tab")
+        run_abricate(
+            args, abricate_dir,
+            mobile_fasta=mobile_genome_path_prefix + ".fasta",
+            images_dict=images_dict,
+            all_results=abricate_data, log_dir=log_dir)
+        wgs_abricate_data = os.path.join(
+            args.output, "wgs_abricate.tab")
+        run_abricate(
+            args, wgs_abricate_dir,
+            mobile_fasta=args.contigs,
+            images_dict=images_dict,
+            all_results=wgs_abricate_data, log_dir=log_dir)
+        if not args.skip_reannotate:
+            run_annotation(
+                args, contigs=mobile_genome_path_prefix + ".fasta",
+                prokka_dir=mobile_prokka_dir, images_dict=images_dict,
+                skip_rename=False,
+                new_name="tmp_mobile.fasta", log_dir=log_dir)
+    # Run Annofilt on mobile genome and annotated genome
+    if not args.skip_annofilt:
+        try:
+            mobile_prokka_fna = glob.glob(
+                os.path.join(mobile_prokka_dir, "*.fna"))[0]
+        except IndexError:
+            raise FileNotFoundError(
+                "File not found - something went " +
+                "wrong annotating the mobile genome.")
+        # copy pan_genome temporarrity:
+        tmp_pangenome = os.path.join(args.output, "pangenome.fasta")
+        shutil.copyfile(args.annofilt_reference, tmp_pangenome)
+        old_annofilt_reference = args.annofilt_reference
+        args.annofilt_reference = tmp_pangenome
+        print("Running annofilt to remove truncated CDSs")
+        run_annofilt(
+            args,
+            annofilt_dir=annofilt_dir,
+            prokka_dir=mobile_prokka_dir,
+            images_dict=images_dict,
+            log_dir=log_dir)
+        run_annofilt(
+            args,
+            annofilt_dir=wgs_annofilt_dir,
+            prokka_dir=prokka_dir,
+            images_dict=images_dict,
+            log_dir=log_dir)
+        # run_cgview(args, cgview_tab=cgview_data, cgview_dir=cgview_dir, images_dict=images_dict)
 
 if __name__ == "__main__":
     args = get_args()

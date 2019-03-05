@@ -9,6 +9,12 @@ programs:
     exe: null
     # results: "/prokka/bin/prokka"
     results: null
+  annofilt:
+    version: 0.0.4f
+    maintainer: nickp60
+    name: annofilt
+    exe: null
+    results: null
   prophet:
     version: 1.14
     maintainer: nickp60
