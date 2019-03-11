@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 #-*- coding: utf-8 -*-
 import re
@@ -719,9 +718,9 @@ def QC_bug(args, QC_dir, min_length, max_length, cov_threshold=.2, min_contig_le
         for rec in SeqIO.parse(inf, "fasta"):
             lengths.append([rec.id, len(rec.seq)])
     total_length = sum([x[1] for x in lengths])
-    log_strings.append("QC criteria -- see happy_args.yaml")
-    log_strings.append("QC'd " + str(len(lengths)) + " sequences")
-    log_strings.append("Assembly is " + str(total_length) + " bases")
+    log_strings.append("#QC criteria -- see happy_args.yaml")
+    log_strings.append("N sequences\t" + str(len(lengths)))
+    log_strings.append("Assembly Length\t" + str(total_length))
     if not min_length < total_length < max_length:
         with open(os.path.join(args.output, "sublogs", "QC.log"), "w") as logoutf:
             for s in log_strings:
@@ -732,18 +731,19 @@ def QC_bug(args, QC_dir, min_length, max_length, cov_threshold=.2, min_contig_le
     )
     short_contigs = {x[0]: x[1] for x in lengths if
                        x[1] < min_contig_length}
-    log_strings.append("Removed " + str(len(short_contigs)) + " short contigs ")
+    log_strings.append("N too short\t" + str(len(short_contigs)))
 
     ncontigs = len(lengths)
     # get SPAdes coverage
     low_cov_contigs = {}
+    spades_headers = True
     with open(args.contigs) as inf:
         header_info = {}
         for rec in SeqIO.parse(inf, "fasta"):
             if not rec.id.startswith("NODE"):
-                log_strings.append("Warning: cannot QC by assembly coverage; " +
-                      "happie only parses SPAdes headers")
-                print(log_strings[-1])
+                spades_headers = False
+                # log_strings.append("Warning: cannot QC by assembly coverage; " +
+                #       "happie only parses SPAdes headers")
             else:
                 # NODE_1_length_10442_cov_5.92661
                 p = re.compile(r'NODE_(?P<node>\d*?)_length_(?P<length>\d*?)_cov_(?P<cov>[\d|\.]*)')
@@ -758,8 +758,11 @@ def QC_bug(args, QC_dir, min_length, max_length, cov_threshold=.2, min_contig_le
         low_cov_contigs = {x: y for x, y in header_info.items() if
                        y['cov'] < (mean_coverage * cov_threshold)}
     bad_contigs = {**short_contigs, **low_cov_contigs}
-    log_strings.append("Removed " + str(len(low_cov_contigs)) +
-                       " low covereage contigs ")
+    if spades_headers:
+        log_strings.append("N low coverage\t" + str(len(low_cov_contigs)))
+    else:
+        log_strings.append("N low coverage\tNA")
+    retained_length = 0
     if bad_contigs:
         print("the following contigs have too low loverage or are too short "
               "and will be removed from the analysis")
@@ -771,13 +774,16 @@ def QC_bug(args, QC_dir, min_length, max_length, cov_threshold=.2, min_contig_le
         with open(args.contigs, "r") as inf, open(outfile, "w") as outf:
             for rec in SeqIO.parse(inf, "fasta"):
                 if not rec.id in bad_contigs.keys():
+                    retained_length += len(rec.seq)
                     SeqIO.write(rec, outf, "fasta")
         args.contigs = outfile
+    log_strings.append("Filtered assembly length\t" + str(retained_length))
     with open(os.path.join(args.output, "sublogs", "QC.log"), "w") as logoutf:
         for s in log_strings:
             logoutf.write(s + "\n")
     if len(bad_contigs) >= ncontigs:
         raise ValueError("All of the contigs are filtered out with the current criteria")
+
 
 
 def main(args=None):
