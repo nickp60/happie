@@ -784,6 +784,8 @@ def QC_bug(args, QC_dir, min_length, max_length, cov_threshold=.2, min_contig_le
     if len(bad_contigs) >= ncontigs:
         raise ValueError("All of the contigs are filtered out with the current criteria")
 
+    log_strings.append("Filtered assembly is " + str(retained_length) + " bases")
+
 
 
 def main(args=None):
