@@ -131,7 +131,6 @@ def test_exes(exes):
             raise ValueError("%s executable not found" % exe)
 
 
-
 def make_containerized_cmd(args, image, dcommand, scommand, indir=None, outdir=None, sing=None):
     """
     note that memory must be provided in gigabytes
@@ -153,6 +152,7 @@ def make_containerized_cmd(args, image, dcommand, scommand, indir=None, outdir=N
         cmd = str(
             "{args.images_dir}{sing} {scommand}").format(**locals())
     return cmd
+
 
 def parse_prophet_results(results):
     results_text = []
@@ -220,6 +220,7 @@ def parse_mlplasmids_results(mlplasmids_results):
             templated.append(subresults)
             # print(subresults)
     return templated
+
 
 def condensce_regions(all_results):
     merged_labeled = []
@@ -367,7 +368,7 @@ def write_out_names_key(inA, inB, outfile):
 
 
 def run_annotation(args, contigs, prokka_dir, images_dict, skip_rename=True,
-                   new_name="new_fasta.fasta", log_dir=None):
+                   new_name="new_fasta.fasta", subset="wgs", log_dir=None):
     if os.path.exists(prokka_dir):
         shutil.rmtree(prokka_dir)
     if not skip_rename:
@@ -396,17 +397,17 @@ def run_annotation(args, contigs, prokka_dir, images_dict, skip_rename=True,
             "--fast --cpus {cpus} 2> {log}").format(
                 infile=os.path.relpath(contigs),
                 outdir=os.path.relpath(prokka_dir),
-                name=args.name,
+                name=subset + "_" + args.name,
                 cpus=args.cores,
-                log=os.path.join(log_dir, "prokka.log")),
+                log=os.path.join(log_dir, subset + "_prokka.log")),
         scommand=str(
             "{infile} -o {outdir} --prefix {name} " +
             "--fast --cpus {cpus} 2> {log}").format(
                 infile=contigs,
                 outdir=prokka_dir,
-                name=args.name,
+                name=subset + "_" + args.name,
                 cpus=args.cores,
-                log=os.path.join(log_dir, "prokka.log"))
+                log=os.path.join(log_dir, subset + "_prokka.log"))
 
     )
     print(prokka_cmd)
@@ -417,7 +418,8 @@ def run_annotation(args, contigs, prokka_dir, images_dict, skip_rename=True,
                    check=True)
 
 
-def run_annofilt(args, annofilt_dir, prokka_dir, images_dict, log_dir=None):
+def run_annofilt(args, annofilt_dir, prokka_dir, images_dict,
+                 subset="wgs", log_dir=None):
     if os.path.exists(annofilt_dir):
         print("removing old annofilt dir")
         shutil.rmtree(annofilt_dir)
@@ -433,7 +435,7 @@ def run_annofilt(args, annofilt_dir, prokka_dir, images_dict, log_dir=None):
                 infile=os.path.relpath(prokka_dir),
                 outdir=os.path.relpath(annofilt_dir),
                 cpus=args.cores,
-                log=os.path.join(log_dir, "annofilt.log")),
+                log=os.path.join(log_dir, subset + "_annofilt.log")),
         scommand=str(
             "{ref} {infile} -o {outdir} " +
             "--threads {cpus} 2> {log}").format(
@@ -441,7 +443,7 @@ def run_annofilt(args, annofilt_dir, prokka_dir, images_dict, log_dir=None):
                 infile=prokka_dir,
                 outdir=annofilt_dir,
                 cpus=args.cores,
-                log=os.path.join(log_dir, "annofilt.log"))
+                log=os.path.join(log_dir, subset + "_annofilt.log"))
 
     )
     print(annofilt_cmd)
@@ -452,7 +454,7 @@ def run_annofilt(args, annofilt_dir, prokka_dir, images_dict, log_dir=None):
                    check=True)
 
 
-def run_prophet(args, prokka, prophet_dir, images_dict, log_dir=None):
+def run_prophet(args, prokka, prophet_dir, images_dict, subset="wgs", log_dir=None):
     if os.path.exists(prophet_dir):
         shutil.rmtree(prophet_dir)
     prophet_cmd = make_containerized_cmd(
@@ -466,7 +468,7 @@ def run_prophet(args, prokka, prophet_dir, images_dict, log_dir=None):
                 infilegff=os.path.relpath(prokka.gff),
                 outdir=os.path.relpath(prophet_dir),
                 cores=args.cores,
-                log=os.path.join(log_dir, "PropheET.log")),
+                log=os.path.join(log_dir, subset + "_PropheET.log")),
         scommand=str(
             "--fasta_in {infilefasta} --gff_in {infilegff} " +
             "--outdir {outdir}/ --cores {cores} 2> {log}").format(
@@ -474,7 +476,7 @@ def run_prophet(args, prokka, prophet_dir, images_dict, log_dir=None):
                 infilegff=os.path.relpath(prokka.gff),
                 outdir=os.path.relpath(prophet_dir),
                 cores=args.cores,
-                log=os.path.join(log_dir, "PropheET.log")),
+                log=os.path.join(log_dir, subset + "_PropheET.log")),
     )
     print(prophet_cmd)
     subprocess.run([prophet_cmd],
@@ -484,7 +486,7 @@ def run_prophet(args, prokka, prophet_dir, images_dict, log_dir=None):
                    check=True)
 
 
-def run_mlplasmids(args, prokka, mlplasmids_results, images_dict, log_dir=None):
+def run_mlplasmids(args, prokka, mlplasmids_results, images_dict, subset="wgs", log_dir=None):
     if os.path.exists(mlplasmids_results):
         os.remove(mlplasmids_results)
     mlplasmids_cmd = make_containerized_cmd(
@@ -496,15 +498,13 @@ def run_mlplasmids(args, prokka, mlplasmids_results, images_dict, log_dir=None):
             ".8 'Escherichia coli' 2> {log}").format(
                 infilefasta=os.path.relpath(prokka.fna),
                 outdir=os.path.relpath(mlplasmids_results),
-                log=os.path.join(log_dir, "mlplasmids.log")),
+                log=os.path.join(log_dir, subset + "_mlplasmids.log")),
         scommand=str(
             "{infilefasta} {outdir}  " +
             ".8 'Escherichia coli' 2> {log}").format(
                 infilefasta=prokka.fna,
                 outdir=mlplasmids_results,
-                log=os.path.join(log_dir, "mlplasmids.log")),
-
-
+                log=os.path.join(log_dir, subset + "_mlplasmids.log")),
     )
     print(mlplasmids_cmd)
     subprocess.run([mlplasmids_cmd],
@@ -514,7 +514,7 @@ def run_mlplasmids(args, prokka, mlplasmids_results, images_dict, log_dir=None):
                    check=True)
 
 
-def run_dimob(args, prokka, island_results, images_dict, log_dir=None):
+def run_dimob(args, prokka, island_results, images_dict, subset="wgs",log_dir=None):
     island_dir = os.path.dirname(island_results)
     island_seqs_dir = os.path.join(island_dir, "tmp")
     island_results_dir = os.path.join(island_dir, "results")
@@ -550,14 +550,11 @@ def run_dimob(args, prokka, island_results, images_dict, log_dir=None):
             dcommand=str(
                 "/input/{infile} /output/{outdir}" ).format(
                     infile=os.path.relpath(v["gbk"]),
-                    outdir=os.path.relpath(v['result']),
-                    log=os.path.join(log_dir, "dimob.log")),
+                    outdir=os.path.relpath(v['result'])),
             scommand=str(
                 "{infile} {outdir}" ).format(
                     infile=v["gbk"],
-                    outdir=v['result'],
-                    log=os.path.join(log_dir, "dimob.log")),
-
+                    outdir=v['result']),
         )
         print(island_cmd)
         subprocess.run([island_cmd],
@@ -572,7 +569,7 @@ def run_dimob(args, prokka, island_results, images_dict, log_dir=None):
                 outf.write(k + "\t" + line)
 
 
-def run_abricate(args, abricate_dir, mobile_fasta, images_dict, all_results, log_dir=None):
+def run_abricate(args, abricate_dir, mobile_fasta, images_dict, all_results, subset="wgs", log_dir=None):
     # remove old results
     if os.path.exists(abricate_dir):
         shutil.rmtree(abricate_dir)
@@ -592,16 +589,14 @@ def run_abricate(args, abricate_dir, mobile_fasta, images_dict, all_results, log
                     db=db,
                     infilefasta=os.path.relpath(mobile_fasta),
                     outdir=abricate_dir,
-                    log=os.path.join(log_dir, "abricate")),
+                    log=os.path.join(log_dir, subset + "_abricate")),
             scommand=str(
                 "--db {db}  {infilefasta} > {outdir}/{db}.tab  " +
                 "2> {log}_{db}_log.txt").format(
                     db=db,
                     infilefasta=mobile_fasta,
                     outdir=abricate_dir,
-                    log=os.path.join(log_dir, "abricate")),
-
-
+                    log=os.path.join(log_dir, subset + "_abricate")),
         )
         cmds.append(this_cmd)
     for cmd in cmds:
@@ -616,8 +611,6 @@ def run_abricate(args, abricate_dir, mobile_fasta, images_dict, all_results, log
         for f in outfiles:
             for line in open(f, "r"):
                 outf.write(line)
-
-
 
 
 def make_cgview_tab_file(args, seqlen, cgview_entries):
@@ -635,7 +628,7 @@ def make_cgview_tab_file(args, seqlen, cgview_entries):
     return results
 
 
-def run_cgview(args, cgview_tab, cgview_dir, images_dict, log_dir=None):
+def run_cgview(args, cgview_tab, cgview_dir, images_dict, subset="wgs",log_dir=None):
     if os.path.exists(cgview_dir):
         shutil.rmtree(cgview_dir)
     os.makedirs(cgview_dir)
@@ -648,13 +641,13 @@ def run_cgview(args, cgview_tab, cgview_dir, images_dict, log_dir=None):
                 exe=images_dict['cgview']['exe'],
                 infilefasta=os.path.relpath(cgview_tab),
                 outdir=os.path.join(os.path.relpath(cgview_dir), "cgview.svg"),
-                log=os.path.join(log_dir, "cgview.log")),
+                log=os.path.join(log_dir, subset + "_cgview.log")),
         scommand=str(
             "-i {infilefasta} -f svg -o {outdir} -I T").format(
                 exe=images_dict['cgview']['exe'],
                 infilefasta=cgview_tab,
                 outdir=os.path.join(cgview_dir, "cgview.svg"),
-                log=os.path.join(log_dir, "cgview.log")),
+                log=os.path.join(log_dir, subset + "_cgview.log")),
 
     )
     print(cgview_cmd)
@@ -667,7 +660,6 @@ def run_cgview(args, cgview_tab, cgview_dir, images_dict, log_dir=None):
 
 def make_circleator():
     """
-
     type - either the name of a predefined track type OR the keyword new
     name - a name by which the track may be referenced from elsewhere in the configuration file
     glyph - the Circleator “glyph” used to render this track
@@ -695,6 +687,7 @@ def write_out_yaml_args(args, outpath):
     with open(outpath, "w") as outf:
         yaml.dump(args, outf)
 
+
 def read_in_yaml_args(outpath):
     if not os.path.exists(outpath):
         raise FileNotFoundError("cannot open file %s" % outpath)
@@ -718,7 +711,7 @@ def coords_to_merged_gff(coords):
     pass
 
 
-def QC_bug(args, min_length, max_length, cov_threshold=.2, min_contig_length=800):
+def QC_bug(args, QC_dir, min_length, max_length, cov_threshold=.2, min_contig_length=800):
     # check assembly size
     log_strings = []
     lengths = []
@@ -728,7 +721,7 @@ def QC_bug(args, min_length, max_length, cov_threshold=.2, min_contig_length=800
     total_length = sum([x[1] for x in lengths])
     log_strings.append("QC criteria -- see happy_args.yaml")
     log_strings.append("QC'd " + str(len(lengths)) + " sequences")
-    log_strings.append("Assembly is" + str(total_length) + "bases")
+    log_strings.append("Assembly is " + str(total_length) + " bases")
     if not min_length < total_length < max_length:
         with open(os.path.join(args.output, "sublogs", "QC.log"), "w") as logoutf:
             for s in log_strings:
@@ -773,8 +766,8 @@ def QC_bug(args, min_length, max_length, cov_threshold=.2, min_contig_length=800
         print(bad_contigs)
         # make a filtered file
         outfile = os.path.join(
-            args.output,
-            os.path.basename(os.path.splitext(args.contigs)[0]) + "_filtered.fasta")
+            args.output, QC_dir,
+            os.path.basename(os.path.splitext(args.contigs)[0]) + "_postQC.fasta")
         with open(args.contigs, "r") as inf, open(outfile, "w") as outf:
             for rec in SeqIO.parse(inf, "fasta"):
                 if not rec.id in bad_contigs.keys():
@@ -807,34 +800,30 @@ def main(args=None):
     config_data = sm.get_containers_manifest()
     images_dict = sm.parse_docker_images(config_data)
     log_dir = os.path.join(args.output, "sublogs")
-    prokka_dir = os.path.join(args.output, "prokka")
+    QC_dir = os.path.join(args.output, "QC")
+    prokka_dir = os.path.join(args.output, "wgs_prokka")
     mobile_prokka_dir = os.path.join(args.output, "mobile_prokka")
     prophet_dir = os.path.join(args.output, "ProphET", "")
     prophet_results = os.path.join(prophet_dir, "phages_coords")
-    mobsuite_dir = os.path.join(args.output, "mobsuite", "")
     island_dir = os.path.join(args.output, "dimob", "")
     island_results = os.path.join(args.output, "dimob", "dimob_results")
     mlplasmids_dir = os.path.join(args.output, "mlplasmids", "")
     mlplasmids_results = os.path.join(args.output, "mlplasmids", "results.txt")
-    abricate_dir = os.path.join(args.output, "abricate", "")
-    wgs_abricate_dir = os.path.join(args.output, "abricate_wgs", "")
-    annofilt_dir = os.path.join(args.output, "annofilt", "")
-    wgs_annofilt_dir = os.path.join(args.output, "annofilt_wgs", "")
+    abricate_dir = os.path.join(args.output, "mobile_abricate", "")
+    wgs_abricate_dir = os.path.join(args.output, "wgs_abricate", "")
+    annofilt_dir = os.path.join(args.output, "mobile_annofilt", "")
+    wgs_annofilt_dir = os.path.join(args.output, "wgs_annofilt", "")
     cgview_dir = os.path.join(args.output, "cgview", "")
-    # make sub directories.  We don't care if they already exist;
+    # make sub directories. We don't care if they already exist;
     #  cause we clobber them later if they will cause problems for reexecution
     # except dont make prokka dirs
-    for path in [prophet_dir, mobsuite_dir, mlplasmids_dir, island_dir,
-                 abricate_dir, wgs_abricate_dir, log_dir]:
+    for path in [prophet_dir, mlplasmids_dir, island_dir,
+                 abricate_dir, wgs_abricate_dir, log_dir, QC_dir]:
         os.makedirs(path, exist_ok=True)
 
     # write out args for easier re-running
     write_out_yaml_args(args, outpath=os.path.join(args.output, "happie_args.yaml"))
 
-    # This causes problems on HPCs when I forget to set cores:(
-    #    I set a default in the args
-    # if args.cores is None:
-    #     args.cores = multiprocessing.cpu_count()
     if args.restart_stage < 2:
         isfasta = False
         with open(args.contigs, "r") as inf:
@@ -857,6 +846,7 @@ def main(args=None):
         if not args.skip_QC:
             QC_bug(
                 args,
+                QC_dir,
                 min_length=args.QC_min_assembly,
                 max_length=args.QC_max_assembly,
                 cov_threshold=args.QC_min_cov,
@@ -864,7 +854,8 @@ def main(args=None):
         print("running prokka")
         run_annotation(args, contigs=args.contigs, prokka_dir=prokka_dir,
                        images_dict=images_dict, skip_rename=args.skip_rename,
-                       new_name="postQC_input.fasta", log_dir=log_dir)
+                       new_name="renamed_preprokka_input.fasta",
+                       subset="wgs", log_dir=log_dir)
     else:
         # read in old config file, if it exists. for now we just get the old
         # path to the contigs, so you dont have to remember how exacly you ran
@@ -905,11 +896,11 @@ def main(args=None):
         gff=prokka_gff,)
     ##########################  finding mobile element ################################3
     if args.restart_stage < 3 and any([x=="prophages" for x in args.elements]):
-        run_prophet(args, prokka, prophet_dir, images_dict, log_dir=log_dir)
+        run_prophet(args, prokka, prophet_dir, images_dict, subset="mobile",log_dir=log_dir)
     if args.restart_stage < 4 and any([x=="plasmids" for x in args.elements]):
-        run_mlplasmids(args, prokka, mlplasmids_results, images_dict, log_dir=log_dir)
+        run_mlplasmids(args, prokka, mlplasmids_results, images_dict, subset="mobile", log_dir=log_dir)
     if args.restart_stage < 5 and any([x=="islands" for x in args.elements]):
-        run_dimob(args, prokka, island_results, images_dict, log_dir=log_dir)
+        run_dimob(args, prokka, island_results, images_dict, subset="mobile", log_dir=log_dir)
     if args.restart_stage < 6 and any([x=="is" for x in args.elements]):
         pass
         #run_dimob(args, prokka, island_results, images_dict)
@@ -964,25 +955,25 @@ def main(args=None):
                 outf.write(line + "\n")
         #########################################
         # run abricate on both the mobile genome, and the entire sequence, for enrichment comparison
-        abricate_data = os.path.join(args.output, "abricate.tab")
+        abricate_data = os.path.join(args.output, "mobile_abricate.tab")
         run_abricate(
             args, abricate_dir,
             mobile_fasta=mobile_genome_path_prefix + ".fasta",
             images_dict=images_dict,
-            all_results=abricate_data, log_dir=log_dir)
+            all_results=abricate_data,subset="mobile", log_dir=log_dir)
         wgs_abricate_data = os.path.join(
             args.output, "wgs_abricate.tab")
         run_abricate(
             args, wgs_abricate_dir,
             mobile_fasta=args.contigs,
             images_dict=images_dict,
-            all_results=wgs_abricate_data, log_dir=log_dir)
+            all_results=wgs_abricate_data, subset="wgs", log_dir=log_dir)
         if not args.skip_reannotate:
             run_annotation(
                 args, contigs=mobile_genome_path_prefix + ".fasta",
                 prokka_dir=mobile_prokka_dir, images_dict=images_dict,
                 skip_rename=False,
-                new_name="tmp_mobile.fasta", log_dir=log_dir)
+                new_name="tmp_mobile.fasta", subset="mobile", log_dir=log_dir)
     # Run Annofilt on mobile genome and annotated genome
     if not args.skip_annofilt:
         try:
@@ -993,7 +984,7 @@ def main(args=None):
                 "File not found - something went " +
                 "wrong annotating the mobile genome.")
         # copy pan_genome temporarrity:
-        tmp_pangenome = os.path.join(args.output, "pangenome.fasta")
+        tmp_pangenome = os.path.join(args.output, "tmp_pangenome.fasta")
         shutil.copyfile(args.annofilt_reference, tmp_pangenome)
         old_annofilt_reference = args.annofilt_reference
         args.annofilt_reference = tmp_pangenome
@@ -1003,14 +994,18 @@ def main(args=None):
             annofilt_dir=annofilt_dir,
             prokka_dir=mobile_prokka_dir,
             images_dict=images_dict,
+            subset="mobile",
             log_dir=log_dir)
         run_annofilt(
             args,
             annofilt_dir=wgs_annofilt_dir,
             prokka_dir=prokka_dir,
             images_dict=images_dict,
+            subset="wgs",
             log_dir=log_dir)
+        os.remove(tmp_pangenome)
         # run_cgview(args, cgview_tab=cgview_data, cgview_dir=cgview_dir, images_dict=images_dict)
+
 
 if __name__ == "__main__":
     args = get_args()
