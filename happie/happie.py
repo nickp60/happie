@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 #-*- coding: utf-8 -*-
 import re
@@ -760,6 +759,7 @@ def QC_bug(args, QC_dir, min_length, max_length, cov_threshold=.2, min_contig_le
     bad_contigs = {**short_contigs, **low_cov_contigs}
     log_strings.append("Removed " + str(len(low_cov_contigs)) +
                        " low covereage contigs ")
+    retained_length = 0
     if bad_contigs:
         print("the following contigs have too low loverage or are too short "
               "and will be removed from the analysis")
@@ -771,6 +771,7 @@ def QC_bug(args, QC_dir, min_length, max_length, cov_threshold=.2, min_contig_le
         with open(args.contigs, "r") as inf, open(outfile, "w") as outf:
             for rec in SeqIO.parse(inf, "fasta"):
                 if not rec.id in bad_contigs.keys():
+                    retained_length += len(rec.seq)
                     SeqIO.write(rec, outf, "fasta")
         args.contigs = outfile
     with open(os.path.join(args.output, "sublogs", "QC.log"), "w") as logoutf:
@@ -778,6 +779,8 @@ def QC_bug(args, QC_dir, min_length, max_length, cov_threshold=.2, min_contig_le
             logoutf.write(s + "\n")
     if len(bad_contigs) >= ncontigs:
         raise ValueError("All of the contigs are filtered out with the current criteria")
+
+    log_strings.append("Filtered assembly is " + str(retained_length) + " bases")
 
 
 def main(args=None):
