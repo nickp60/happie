@@ -1,0 +1,18 @@
+!!python/object:argparse.Namespace
+QC_max_assembly: 5500000
+QC_min_assembly: 5000
+QC_min_contig: 800
+QC_min_cov: 0.2
+analyses: [resfinder, vfdb]
+contigs: ./test_data/small.fasta
+cores: 4
+elements: [plasmids, islands, prophages, is]
+images_dir: /Users/nick/.happie/
+memory: 4
+name: test
+output: /Users/nick/GitHub/happie/prokka/tmp_small
+restart_stage: 1
+skip_QC: true
+skip_reannotate: false
+skip_rename: false
+virtualization: docker

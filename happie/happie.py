@@ -28,7 +28,8 @@ def get_args():  # pragma: no cover
     parser = argparse.ArgumentParser(
         description="extract the mobile elements for pangenome analysis;" +
         "if running QC, check default values, as those are geared towards " +
-        "E. coli <https://enterobase.readthedocs.io/en/latest/pipelines/backend-pipeline-qaevaluation.html>",
+        "E. coli <https://enterobase.readthedocs.io/en/latest/pipelines/"
+        +"backend-pipeline-qaevaluation.html>",
         add_help=False)
     # contigs not needed if just re-analyzing the results
     parser.add_argument("--contigs", action="store",
@@ -39,7 +40,7 @@ def get_args():  # pragma: no cover
                         help="destination dir", required=True)
 
     parser.add_argument("--virtualization", action="store",
-                        help="Whether this will be run with Docker or Singularity",
+                        help="Whether to run with Docker or Singularity",
                         choices=["docker", "singularity"],
                         default="docker")
     optional = parser.add_argument_group('optional arguments')
@@ -72,6 +73,22 @@ def get_args():  # pragma: no cover
                           default=["plasmids", "islands", "prophages", "is"],
                           choices=["plasmids", "islands", "prophages", "is"],
                           help="which regions to look for.")
+    optional.add_argument("--use_mobsuite", dest='use_mobsuite',
+                          action="store_true",
+                          help="Use mob_recon from mob-suite " +
+                          " for plasmid ID rather "+
+                          "than mlplasmids.  Use this option if not " +
+                          "working on E. coli, E. faecium, or K "+
+                          " pneumoniae ")
+    optional.add_argument("--mlplasmidsdb", dest='mlplasmidsdb',
+                          action="store", default="Escherichia coli",
+                          choices=["Escherichia coli",
+                                   "Klebsiella pneumoniae",
+                                   "Enterococcus faecium"],
+                          help="Use mob-suite tools for plasmid ID rather "+
+                          "than mlplasmids.  Use this option if not " +
+                          "working on E. coli, E. faecium, or K "+
+                          " pneumoniae ")
     optional.add_argument("--analyses", dest='analyses',
                           action="store", nargs="*",
                           default=["resfinder", "vfdb"],
@@ -494,19 +511,49 @@ def run_mlplasmids(args, prokka, mlplasmids_results, images_dict, subset="wgs", 
         sing=images_dict['mlplasmids']["sing"],
         dcommand=str(
             "/input/{infilefasta} /output/{outdir}  " +
-            ".8 'Escherichia coli' 2> {log}").format(
+            ".8 '{}' 2> {log}").format(
+                db=args.mlplasmidsdb,
                 infilefasta=os.path.relpath(prokka.fna),
                 outdir=os.path.relpath(mlplasmids_results),
                 log=os.path.join(log_dir, subset + "_mlplasmids.log")),
         scommand=str(
             "{infilefasta} {outdir}  " +
-            ".8 'Escherichia coli' 2> {log}").format(
+            ".8 '{db}' 2> {log}").format(
+                db=args.mlplasmidsdb,
                 infilefasta=prokka.fna,
                 outdir=mlplasmids_results,
                 log=os.path.join(log_dir, subset + "_mlplasmids.log")),
     )
     print(mlplasmids_cmd)
     subprocess.run([mlplasmids_cmd],
+                   shell=sys.platform != "win32",
+                   stdout=subprocess.PIPE,
+                   stderr=subprocess.PIPE,
+                   check=True)
+
+def run_mobsuite(args, prokka,  mobsuite_results, images_dict,
+                  subset="wgs", log_dir=None):
+    if os.path.exists(mobsuite_results):
+        os.remove(mobsuite_results)
+    mobsuite_cmd = make_containerized_cmd(
+        args=args,
+                image=images_dict['mobsuite']['image'],
+        sing=images_dict['mobsuite']["sing"],
+        dcommand=str(
+            "/input/{infilefasta} /output/{outdir}  " +
+            ".8 '{}' 2> {log}").format(
+                infilefasta=os.path.relpath(prokka.fna),
+                outdir=os.path.relpath(mobsuite_results),
+                log=os.path.join(log_dir, subset + "_mobsuite.log")),
+        scommand=str(
+            "{infilefasta} {outdir}  " +
+            ".8 '{db}' 2> {log}").format(
+                infilefasta=prokka.fna,
+                outdir=mobsuite_results,
+                log=os.path.join(log_dir, subset + "_mobsuite.log")),
+    )
+    print(mobsuite_cmd)
+    subprocess.run([mobsuite_cmd],
                    shell=sys.platform != "win32",
                    stdout=subprocess.PIPE,
                    stderr=subprocess.PIPE,
@@ -754,6 +801,7 @@ def QC_bug(args, QC_dir, min_length, max_length, cov_threshold=.2, min_contig_le
                 }
     if header_info:
         # this gets skipped if we didnt have spades headers
+        # this should prrobably get changed to median or something;  shortie contigs have super high cover
         mean_coverage = sum([y['cov'] for x, y in header_info.items()])/ncontigs
         low_cov_contigs = {x: y for x, y in header_info.items() if
                        y['cov'] < (mean_coverage * cov_threshold)}
@@ -815,6 +863,8 @@ def main(args=None):
     prophet_results = os.path.join(prophet_dir, "phages_coords")
     island_dir = os.path.join(args.output, "dimob", "")
     island_results = os.path.join(args.output, "dimob", "dimob_results")
+    mobsuite_dir = os.path.join(args.output, "mobsuite", "")
+    mobsuite_results = os.path.join(args.output, "mobsuite", "results.txt")
     mlplasmids_dir = os.path.join(args.output, "mlplasmids", "")
     mlplasmids_results = os.path.join(args.output, "mlplasmids", "results.txt")
     abricate_dir = os.path.join(args.output, "mobile_abricate", "")
@@ -825,7 +875,7 @@ def main(args=None):
     # make sub directories. We don't care if they already exist;
     #  cause we clobber them later if they will cause problems for reexecution
     # except dont make prokka dirs
-    for path in [prophet_dir, mlplasmids_dir, island_dir,
+    for path in [prophet_dir, mlplasmids_dir, island_dir, mobsuite_dir,
                  abricate_dir, wgs_abricate_dir, log_dir, QC_dir]:
         os.makedirs(path, exist_ok=True)
 
@@ -906,7 +956,10 @@ def main(args=None):
     if args.restart_stage < 3 and any([x=="prophages" for x in args.elements]):
         run_prophet(args, prokka, prophet_dir, images_dict, subset="mobile",log_dir=log_dir)
     if args.restart_stage < 4 and any([x=="plasmids" for x in args.elements]):
-        run_mlplasmids(args, prokka, mlplasmids_results, images_dict, subset="mobile", log_dir=log_dir)
+        if args.use_mobsuite:
+            run_mobsuite(args, prokka, mobsuite_results, images_dict, subset="mobile", log_dir=log_dir)
+        else:
+            run_mlplasmids(args, prokka, mlplasmids_results, images_dict, subset="mobile", log_dir=log_dir)
     if args.restart_stage < 5 and any([x=="islands" for x in args.elements]):
         run_dimob(args, prokka, island_results, images_dict, subset="mobile", log_dir=log_dir)
     if args.restart_stage < 6 and any([x=="is" for x in args.elements]):
@@ -980,7 +1033,7 @@ def main(args=None):
             run_annotation(
                 args, contigs=mobile_genome_path_prefix + ".fasta",
                 prokka_dir=mobile_prokka_dir, images_dict=images_dict,
-                skip_rename=False,
+                skip_rename=True,
                 new_name="tmp_mobile.fasta", subset="mobile", log_dir=log_dir)
     # Run Annofilt on mobile genome and annotated genome
     if not args.skip_annofilt:

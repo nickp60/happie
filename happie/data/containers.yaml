@@ -41,3 +41,8 @@ programs:
     maintainer: nickp60
     name: cgview
     exe: "java -jar /bin/cgview"
+  mobsuite:
+    version: 1.o
+    maintainer: nickp60
+    name: mobsuite
+    exe: null
