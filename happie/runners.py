@@ -22,6 +22,29 @@ from Bio.Alphabet import IUPAC
 from Bio.SeqFeature import SeqFeature, FeatureLocation
 
 
+def make_containerized_cmd(args, image, dcommand, scommand, indir=None, outdir=None, sing=None):
+    """
+    note that memory must be provided in gigabytes
+    """
+    if indir is None:
+        indir = os.getcwd()
+    if outdir is None:
+        outdir = os.getcwd()
+    if args.virtualization == "docker":
+        cmd = str(
+            "docker run --rm " +
+            "--memory={args.memory}g " +
+            "--cpus={args.cores} " +
+            "-v {indir}:/input " +
+            "-v {outdir}:/output " +
+            "{image} {dcommand}"
+        ).format(**locals())
+    else:
+        cmd = str(
+            "{args.images_dir}{sing} {scommand}").format(**locals())
+    return cmd
+
+
 def run_annotation(args, contigs, prokka_dir, images_dict, skip_rename=True,
                    new_name="new_fasta.fasta", subset="wgs", log_dir=None):
     if os.path.exists(prokka_dir):

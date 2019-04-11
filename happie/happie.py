@@ -1,18 +1,14 @@
 #!/usr/bin/env python3
 #-*- coding: utf-8 -*-
+
 import re
 import argparse
 import sys
 import shutil
 import os
-import unittest
-import itertools
-import multiprocessing
 import random
 import string
-import subprocess
 import glob
-# import pkg_resources
 import yaml
 from argparse import Namespace
 from Bio.Seq import Seq
@@ -31,17 +27,15 @@ def get_args():  # pragma: no cover
     parser = argparse.ArgumentParser(
         description="extract the mobile elements for pangenome analysis;" +
         "if running QC, check default values, as those are geared towards " +
-        "E. coli <https://enterobase.readthedocs.io/en/latest/pipelines/"
-        +"backend-pipeline-qaevaluation.html>",
+        "E. coli <https://enterobase.readthedocs.io/en/latest/pipelines/" +
+        "backend-pipeline-qaevaluation.html>",
         add_help=False)
     # contigs not needed if just re-analyzing the results
     parser.add_argument("--contigs", action="store",
                         help="FASTA or Genbank formatted genome or set of " +
-                        "contigs"
-    )
+                        "contigs")
     parser.add_argument("-o", "--output", action="store",
                         help="destination dir", required=True)
-
     parser.add_argument("--virtualization", action="store",
                         help="Whether to run with Docker or Singularity",
                         choices=["docker", "singularity"],
@@ -56,8 +50,8 @@ def get_args():  # pragma: no cover
                           help="memory limit to use" +
                           "without extension.")
     optional.add_argument("--images_dir", dest='images_dir',
-                          help="if using singularity, where to store your "
-                          +"singularity images",
+                          help="if using singularity, where to store your " +
+                          "singularity images",
                           default=sm.get_happie_dir())
     optional.add_argument("-n", "--name", dest='name',
                           help="name of experiment; defaults to file name " +
@@ -70,7 +64,8 @@ def get_args():  # pragma: no cover
                           help="skip initial contig renaming.")
     optional.add_argument("--skip_reannotate", dest='skip_reannotate',
                           action="store_true",
-                          help="skip re-annotation of mobile genome with prokka.")
+                          help="skip re-annotation of mobile genome " +
+                          "with prokka.")
     optional.add_argument("--elements", dest='elements',
                           action="store", nargs="*",
                           default=["plasmids", "islands", "prophages", "is"],
@@ -150,29 +145,6 @@ def test_exes(exes):
             raise ValueError("%s executable not found" % exe)
 
 
-def make_containerized_cmd(args, image, dcommand, scommand, indir=None, outdir=None, sing=None):
-    """
-    note that memory must be provided in gigabytes
-    """
-    if indir is None:
-        indir = os.getcwd()
-    if outdir is None:
-        outdir = os.getcwd()
-    if args.virtualization == "docker":
-        cmd = str(
-            "docker run --rm " +
-            "--memory={args.memory}g " +
-            "--cpus={args.cores} " +
-            "-v {indir}:/input " +
-            "-v {outdir}:/output " +
-            "{image} {dcommand}"
-        ).format(**locals())
-    else:
-        cmd = str(
-            "{args.images_dir}{sing} {scommand}").format(**locals())
-    return cmd
-
-
 def condensce_regions(all_results):
     merged_labeled = []
     for seq in set([x[2] for x in all_results]):
@@ -203,23 +175,23 @@ def annotate_overlaps():
         pass
 
 
-def write_annotated_mobile_genome(contigs,seed, output_path,  all_results, non_overlapping_results):
+def write_annotated_mobile_genome(contigs,seed, output_path, all_results, non_overlapping_results):
     """write out all regions of interest to a single fasta file
+    we want to make our hit list along side this for cgview
+    ring 1 is the "genome"
+    additional rings are for possible element/annoations
+    {seq: {length, global_start, mobile_start, }}
+                    entries.append(
+                        "\t".join(
+                            ["forward",
+                             str(i+2),
+                             str(rel_start),
+                             str(rel_end ),
+                             "gene",
+                             typ,
+                             program,
+                             "github.com/nickp60/happie"]))
     """
-    # we want to make our hit list along side this for cgview
-    # ring 1 is the "genome"
-    # additional rings are for possible element/annoations
-    # {seq: {length, global_start, mobile_start, }}
-                    # entries.append(
-                    #     "\t".join(
-                    #         ["forward",
-                    #          str(i+2),
-                    #          str(rel_start),
-                    #          str(rel_end ),
-                    #          "gene",
-                    #          typ,
-                    #          program,
-                    #          "github.com/nickp60/happie"]))
     cgview_entries= []
     total_length = 0
     programs = set([x[0] for x in all_results ])
@@ -478,7 +450,7 @@ def main(args=None):
     island_dir = os.path.join(args.output, "dimob", "")
     island_results = os.path.join(args.output, "dimob", "dimob_results")
     mobsuite_dir = os.path.join(args.output, "mobsuite", "")
-    mobsuite_results = os.path.join(args.output, "mobsuite", "results.txt")
+    mobsuite_results = os.path.join(args.output, "mobsuite", "contig_report.txt")
     plasflow_dir = os.path.join(args.output, "plasflow", "")
     plasflow_results = os.path.join(args.output, "plasflow", "results.txt")
     mlplasmids_dir = os.path.join(args.output, "mlplasmids", "")
@@ -592,15 +564,15 @@ def main(args=None):
         results_list = []
         if any([x=="prophages" for x in args.elements]):
             if os.path.exists(prophet_results) and os.path.getsize(prophet_results) > 0:
-                prophet_parsed_result = parses.parse_prophet_results(prophet_results)
+                prophet_parsed_result = parsers.parse_prophet_results(prophet_results)
                 all_results.extend(prophet_parsed_result)
                 results_list.append(prophet_parsed_result)
         print(all_results)
         if any([x=="plasmids" for x in args.elements]):
             if "mobsuite" in args.plasmid_tools:
-                if os.path.exists(mobsuite_results) and os.path.getsize(mobsuite_parsed_result) > 0:
+                if os.path.exists(mobsuite_results) and os.path.getsize(mobsuite_results) > 0:
                     mobsuite_parsed_result = \
-                        parsers.parse_mobsuite_results(mobsuite_parsed_result)
+                        parsers.parse_mobsuite_results(mobsuite_results)
                     all_results.extend(mobsuite_parsed_result)
                     results_list.append(mobsuite_parsed_result)
             if "plasflow" in args.plasmid_tools:
@@ -640,7 +612,7 @@ def main(args=None):
             print("WARNING: none of the genome was detected to be mobile")
             return 0
 
-        tab_data = make_cgview_tab_file(args, cgview_entries=cgview_entries,
+        tab_data = runners.make_cgview_tab_file(args, cgview_entries=cgview_entries,
                                     seqlen=seq_length)
         cgview_data = os.path.join(args.output, "cgview.tab")
         with open(cgview_data, "w") as outf:

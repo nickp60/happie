@@ -51,3 +51,8 @@ programs:
     maintainer: nickp60
     name: plasflow
     exe: null
+  # antismash:
+  #   version: 4.2.0
+  #   maintainer: antismash
+  #   name: standalone-lite
+  #   exe: null

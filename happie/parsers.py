@@ -83,6 +83,32 @@ def parse_plasflow_results(results):
     return templated
 
 
+def parse_mobsuite_results(results):
+    results_text = []
+    templated = []
+    with open(results) as inf:
+        for i, line in enumerate(inf):
+            if i == 0:
+                pass
+            else:
+                results = ["mobsuite", "plasmids", "1"]
+                results.extend(line.strip().split("\t"))
+                results_text.append(results)
+    for line in results_text:
+        subresults = []
+        if line[4].startswith("chromosome"):
+            continue
+        for i in [0, 1, 5, 2, 6]:
+            if i in [2, 6]:
+                subresults.append(int(line[i]))
+            elif i == 5.:
+                subresults.append(line[i].split("|")[1])
+            else:
+                subresults.append(line[i])
+        templated.append(subresults)
+    return templated
+
+
 def parse_mlplasmids_results(mlplasmids_results):
     mlplasmids_results_text = []
     templated = []
