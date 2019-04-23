@@ -693,30 +693,34 @@ def main(args=None):
             try:
                 shutil.copyfile(
                     glob.glob(os.path.join(mobile_prokka_dir, "*.fna"))[0],
-                    os.path.join(results_dir, args.name + '.fasta'))
+                    os.path.join(
+                        results_dir, "mobile_" + args.name + '.fasta'))
                 shutil.copyfile(
                     glob.glob(os.path.join(mobile_prokka_dir, "*.gbk"))[0],
-                    os.path.join(results_dir, args.name + '.gbk'))
+                    os.path.join(results_dir, "mobile_" + args.name + '.gbk'))
             except IndexError:
                 raise FileNotFoundError(
                     "File not found - something went " +
                     "wrong annotating the mobile genome.")
 
         else:
-            shutil.copyfile(mobile_genome_path_prefix + ".fasta",
-                            os.path.join(results_dir, args.name + '.fasta'))
+            shutil.copyfile(
+                mobile_genome_path_prefix + ".fasta",
+                os.path.join(results_dir, "mobile_" + args.name + '.fasta'))
 
     # Run Annofilt on mobile genome and annotated genome
     if args.skip_annofilt:
         try:
-            shutil.copyfile(prokka_gbk,
-                            os.path.join(results_dir, args.name + '.gbk'))
-            shutil.copyfile(prokka_gff,
-                            os.path.join(results_dir, args.name + '.gff'))
+            shutil.copyfile(
+                prokka_gbk,
+                os.path.join(results_dir, "wgs_" + args.name + '.gbk'))
+            shutil.copyfile(
+                prokka_gff,
+                os.path.join(results_dir, "wgs_" + args.name + '.gff'))
         except IndexError:
             raise FileNotFoundError(
                 "File not found - something went " +
-                "wrong filtering annotations.")
+                "wrong copying annotations.")
     else:
         # mobile_prokka_fna = glob.glob(
         #     os.path.join(mobile_prokka_dir, "*.fna"))[0]
@@ -744,16 +748,16 @@ def main(args=None):
         try:
             shutil.copyfile(
                 glob.glob(os.path.join(wgs_annofilt_dir, "*.gbk"))[0],
-                os.path.join(results_dir, args.name + '.gbk'))
+                os.path.join(results_dir, "wgs_" + args.name + '.gbk'))
             shutil.copyfile(
                 glob.glob(os.path.join(mobile_annofilt_dir, "*.gbk"))[0],
-                os.path.join(results_dir, args.name + '.gbk'))
+                os.path.join(results_dir, "mobile_" + args.name + '.gbk'))
             shutil.copyfile(
                 glob.glob(os.path.join(wgs_annofilt_dir, "*.gff"))[0],
-                os.path.join(results_dir, args.name + '.gff'))
+                os.path.join(results_dir, "wgs_" + args.name + '.gff'))
             shutil.copyfile(
                 glob.glob(os.path.join(mobile_annofilt_dir, "*.gff"))[0],
-                os.path.join(results_dir, args.name + '.gff'))
+                os.path.join(results_dir, "mobile_" + args.name + '.gff'))
         except IndexError:
             raise FileNotFoundError(
                 "File not found - something went " +
