@@ -1,18 +1,14 @@
 #!/usr/bin/env python3
 #-*- coding: utf-8 -*-
+
 import re
 import argparse
 import sys
 import shutil
 import os
-import unittest
-import itertools
-import multiprocessing
 import random
 import string
-import subprocess
 import glob
-import pkg_resources
 import yaml
 from argparse import Namespace
 from Bio.Seq import Seq
@@ -23,23 +19,25 @@ from Bio.SeqFeature import SeqFeature, FeatureLocation
 
 from . import __version__
 from . import shared_methods as sm
+from . import runners as runners
+from . import parsers as parsers
+
 
 def get_args():  # pragma: no cover
     parser = argparse.ArgumentParser(
         description="extract the mobile elements for pangenome analysis;" +
         "if running QC, check default values, as those are geared towards " +
-        "E. coli <https://enterobase.readthedocs.io/en/latest/pipelines/backend-pipeline-qaevaluation.html>",
+        "E. coli <https://enterobase.readthedocs.io/en/latest/pipelines/" +
+        "backend-pipeline-qaevaluation.html>",
         add_help=False)
     # contigs not needed if just re-analyzing the results
     parser.add_argument("--contigs", action="store",
                         help="FASTA or Genbank formatted genome or set of " +
-                        "contigs"
-    )
+                        "contigs")
     parser.add_argument("-o", "--output", action="store",
                         help="destination dir", required=True)
-
     parser.add_argument("--virtualization", action="store",
-                        help="Whether this will be run with Docker or Singularity",
+                        help="Whether to run with Docker or Singularity",
                         choices=["docker", "singularity"],
                         default="docker")
     optional = parser.add_argument_group('optional arguments')
@@ -52,8 +50,8 @@ def get_args():  # pragma: no cover
                           help="memory limit to use" +
                           "without extension.")
     optional.add_argument("--images_dir", dest='images_dir',
-                          help="if using singularity, where to store your "
-                          +"singularity images",
+                          help="if using singularity, where to store your " +
+                          "singularity images",
                           default=sm.get_happie_dir())
     optional.add_argument("-n", "--name", dest='name',
                           help="name of experiment; defaults to file name " +
@@ -66,12 +64,29 @@ def get_args():  # pragma: no cover
                           help="skip initial contig renaming.")
     optional.add_argument("--skip_reannotate", dest='skip_reannotate',
                           action="store_true",
-                          help="skip re-annotation of mobile genome with prokka.")
+                          help="skip re-annotation of mobile genome " +
+                          "with prokka.")
     optional.add_argument("--elements", dest='elements',
                           action="store", nargs="*",
                           default=["plasmids", "islands", "prophages", "is"],
                           choices=["plasmids", "islands", "prophages", "is"],
                           help="which regions to look for.")
+    optional.add_argument("--plasmid_tools", dest='plasmid_tools',
+                          action="store", nargs='+',
+                          default=["mlplasmids"],
+                          choices=["mlplasmids", "mobsuite", "plasflow"],
+                          help="Which plasmid finder tool(s) to use. " +
+                          "Note: only use mlplasmids if you  are working on " +
+                          "E. coli, E. faecium, or K. pneumoniae")
+    optional.add_argument("--mlplasmidsdb", dest='mlplasmidsdb',
+                          action="store", default="Escherichia coli",
+                          choices=["Escherichia coli",
+                                   "Klebsiella pneumoniae",
+                                   "Enterococcus faecium"],
+                          help="Use mob-suite tools for plasmid ID rather "+
+                          "than mlplasmids.  Use this option if not " +
+                          "working on E. coli, E. faecium, or K "+
+                          " pneumoniae ")
     optional.add_argument("--analyses", dest='analyses',
                           action="store", nargs="*",
                           default=["resfinder", "vfdb"],
@@ -130,97 +145,6 @@ def test_exes(exes):
             raise ValueError("%s executable not found" % exe)
 
 
-def make_containerized_cmd(args, image, dcommand, scommand, indir=None, outdir=None, sing=None):
-    """
-    note that memory must be provided in gigabytes
-    """
-    if indir is None:
-        indir = os.getcwd()
-    if outdir is None:
-        outdir = os.getcwd()
-    if args.virtualization == "docker":
-        cmd = str(
-            "docker run --rm " +
-            "--memory={args.memory}g " +
-            "--cpus={args.cores} " +
-            "-v {indir}:/input " +
-            "-v {outdir}:/output " +
-            "{image} {dcommand}"
-        ).format(**locals())
-    else:
-        cmd = str(
-            "{args.images_dir}{sing} {scommand}").format(**locals())
-    return cmd
-
-
-def parse_prophet_results(results):
-    results_text = []
-    templated = []
-    with open(results) as inf:
-        for line in inf:
-            results = ["prophet", "prophages"]
-            results.extend(line.strip().split("\t"))
-            results_text.append(results)
-    for line in results_text:
-        subresults = []
-        for i in [0, 1, 2, 4, 5]:
-            if i in [4,5]:
-                subresults.append(int(line[i]))
-            else:
-                subresults.append(line[i])
-        templated.append(subresults)
-    return templated
-
-
-def parse_dimob_results(results):
-    results_text = []
-    templated = []
-    with open(results) as inf:
-        for line in inf:
-            results = ["dimob", "islands"]
-            results.extend(line.strip().split("\t"))
-            results_text.append(results)
-    for line in results_text:
-        subresults = []
-        for i in [0, 1, 2, 4, 5]:
-            if i in [4,5]:
-                subresults.append(int(line[i]))
-            else:
-                subresults.append(line[i])
-        templated.append(subresults)
-    return templated
-
-
-def parse_mlplasmids_results(mlplasmids_results):
-    mlplasmids_results_text = []
-    templated = []
-    with open(mlplasmids_results) as inf:
-        for line in inf:
-            # here we add 1 as a start index, and we will use the
-            #  contig length as the end.  Its not great, but its what we have
-            results = ["mlplasmids", "plasmids", "1"]
-            results.extend(line.strip().split("\t"))
-            mlplasmids_results_text.append(results)
-    for line in mlplasmids_results_text:
-        line = [x.replace('"', '') for x in line]
-        if line[5] == 'Plasmid':
-            subresults = []
-            for i in [0, 1, 6, 2, 7]:
-                # if i == 2:
-                #     subresults.append(line[i])
-                # else:
-                # mlplasmids quotes contig name
-                #  I should really talk to whoever wrote that run script.
-                if i in [2,7]:
-                    subresults.append(int(line[i]))
-                else:
-                    subresults.append(line[i])
-                # subresults.append(line[i].replace('"', ""))
-            templated.append(subresults)
-            # print(subresults)
-    return templated
-
-
 def condensce_regions(all_results):
     merged_labeled = []
     for seq in set([x[2] for x in all_results]):
@@ -251,23 +175,23 @@ def annotate_overlaps():
         pass
 
 
-def write_annotated_mobile_genome(contigs,seed, output_path,  all_results, non_overlapping_results):
+def write_annotated_mobile_genome(contigs,seed, output_path, all_results, non_overlapping_results):
     """write out all regions of interest to a single fasta file
+    we want to make our hit list along side this for cgview
+    ring 1 is the "genome"
+    additional rings are for possible element/annoations
+    {seq: {length, global_start, mobile_start, }}
+                    entries.append(
+                        "\t".join(
+                            ["forward",
+                             str(i+2),
+                             str(rel_start),
+                             str(rel_end ),
+                             "gene",
+                             typ,
+                             program,
+                             "github.com/nickp60/happie"]))
     """
-    # we want to make our hit list along side this for cgview
-    # ring 1 is the "genome"
-    # additional rings are for possible element/annoations
-    # {seq: {length, global_start, mobile_start, }}
-                    # entries.append(
-                    #     "\t".join(
-                    #         ["forward",
-                    #          str(i+2),
-                    #          str(rel_start),
-                    #          str(rel_end ),
-                    #          "gene",
-                    #          typ,
-                    #          program,
-                    #          "github.com/nickp60/happie"]))
     cgview_entries= []
     total_length = 0
     programs = set([x[0] for x in all_results ])
@@ -364,296 +288,6 @@ def write_out_names_key(inA, inB, outfile):
                          sorted(inB_names, reverse=True)):
             outf.write("{}\t{}\t{}\t{}\n".format(
                 a[0], a[1], b[0], b[1]))
-
-
-def run_annotation(args, contigs, prokka_dir, images_dict, skip_rename=True,
-                   new_name="new_fasta.fasta", subset="wgs", log_dir=None):
-    if os.path.exists(prokka_dir):
-        shutil.rmtree(prokka_dir)
-    if not skip_rename:
-        dest_fasta = os.path.join(args.output, 'intermediate_files', new_name)
-        with open(contigs, "r") as inf, open(dest_fasta, "w") as outf:
-            for i, rec in enumerate(SeqIO.parse(inf, "fasta")):
-                header = "lcl_" + str(i+1)
-                SeqIO.write(
-                    SeqRecord(
-                        rec.seq,
-                        id=header,
-                        description="",
-                        name=""
-                    ),
-                    outf, "fasta"
-                )
-        args.contigs = dest_fasta
-        contigs = dest_fasta
-    prokka_cmd = make_containerized_cmd(
-        args=args,
-        image=images_dict['prokka']["image"],
-        sing=images_dict['prokka']["sing"],
-        dcommand=str(
-            "/input/{infile} -o /output/{outdir} --prefix {name} " +
-            "--fast --cpus {cpus} 2> {log}").format(
-                infile=os.path.relpath(contigs),
-                outdir=os.path.relpath(prokka_dir),
-                name=subset + "_" + args.name,
-                cpus=args.cores,
-                log=os.path.join(log_dir, subset + "_prokka.log")),
-        scommand=str(
-            "{infile} -o {outdir} --prefix {name} " +
-            "--fast --cpus {cpus} 2> {log}").format(
-                infile=contigs,
-                outdir=prokka_dir,
-                name=subset + "_" + args.name,
-                cpus=args.cores,
-                log=os.path.join(log_dir, subset + "_prokka.log"))
-
-    )
-    print(prokka_cmd)
-    subprocess.run([prokka_cmd],
-                   shell=sys.platform != "win32",
-                   stdout=subprocess.PIPE,
-                   stderr=subprocess.PIPE,
-                   check=True)
-
-
-def run_annofilt(args, annofilt_dir, prokka_dir, images_dict,
-                 subset="wgs", log_dir=None):
-    if os.path.exists(annofilt_dir):
-        print("removing old annofilt dir")
-        shutil.rmtree(annofilt_dir)
-    print("running annofilt")
-    annofilt_cmd = make_containerized_cmd(
-        args=args,
-        image=images_dict['annofilt']["image"],
-        sing=images_dict['annofilt']["sing"],
-        dcommand=str(
-            "/input/{ref} /input/{infile} -o /output/{outdir} " +
-            " --threads {cpus} 2> {log}").format(
-                ref=os.path.relpath(args.annofilt_reference),
-                infile=os.path.relpath(prokka_dir),
-                outdir=os.path.relpath(annofilt_dir),
-                cpus=args.cores,
-                log=os.path.join(log_dir, subset + "_annofilt.log")),
-        scommand=str(
-            "{ref} {infile} -o {outdir} " +
-            "--threads {cpus} 2> {log}").format(
-                ref=args.annofilt_reference,
-                infile=prokka_dir,
-                outdir=annofilt_dir,
-                cpus=args.cores,
-                log=os.path.join(log_dir, subset + "_annofilt.log"))
-
-    )
-    print(annofilt_cmd)
-    subprocess.run([annofilt_cmd],
-                   shell=sys.platform != "win32",
-                   stdout=subprocess.PIPE,
-                   stderr=subprocess.PIPE,
-                   check=True)
-
-
-def run_prophet(args, prokka, prophet_dir, images_dict, subset="wgs", log_dir=None):
-    if os.path.exists(prophet_dir):
-        shutil.rmtree(prophet_dir)
-    prophet_cmd = make_containerized_cmd(
-        args=args,
-        image=images_dict['prophet']['image'],
-        sing=images_dict['prophet']["sing"],
-        dcommand=str(
-            "--fasta_in /input/{infilefasta} --gff_in /input/{infilegff} " +
-            "--outdir /output/{outdir}/ --cores {cores} 2> {log}").format(
-                infilefasta=os.path.relpath(prokka.fna),
-                infilegff=os.path.relpath(prokka.gff),
-                outdir=os.path.relpath(prophet_dir),
-                cores=args.cores,
-                log=os.path.join(log_dir, subset + "_PropheET.log")),
-        scommand=str(
-            "--fasta_in {infilefasta} --gff_in {infilegff} " +
-            "--outdir {outdir}/ --cores {cores} 2> {log}").format(
-                infilefasta=os.path.relpath(prokka.fna),
-                infilegff=os.path.relpath(prokka.gff),
-                outdir=os.path.relpath(prophet_dir),
-                cores=args.cores,
-                log=os.path.join(log_dir, subset + "_PropheET.log")),
-    )
-    print(prophet_cmd)
-    subprocess.run([prophet_cmd],
-                   shell=sys.platform != "win32",
-                   stdout=subprocess.PIPE,
-                   stderr=subprocess.PIPE,
-                   check=True)
-
-
-def run_mlplasmids(args, prokka, mlplasmids_results, images_dict, subset="wgs", log_dir=None):
-    if os.path.exists(mlplasmids_results):
-        os.remove(mlplasmids_results)
-    mlplasmids_cmd = make_containerized_cmd(
-        args=args,
-                image=images_dict['mlplasmids']['image'],
-        sing=images_dict['mlplasmids']["sing"],
-        dcommand=str(
-            "/input/{infilefasta} /output/{outdir}  " +
-            ".8 'Escherichia coli' 2> {log}").format(
-                infilefasta=os.path.relpath(prokka.fna),
-                outdir=os.path.relpath(mlplasmids_results),
-                log=os.path.join(log_dir, subset + "_mlplasmids.log")),
-        scommand=str(
-            "{infilefasta} {outdir}  " +
-            ".8 'Escherichia coli' 2> {log}").format(
-                infilefasta=prokka.fna,
-                outdir=mlplasmids_results,
-                log=os.path.join(log_dir, subset + "_mlplasmids.log")),
-    )
-    print(mlplasmids_cmd)
-    subprocess.run([mlplasmids_cmd],
-                   shell=sys.platform != "win32",
-                   stdout=subprocess.PIPE,
-                   stderr=subprocess.PIPE,
-                   check=True)
-
-
-def run_dimob(args, prokka, island_results, images_dict, subset="wgs",log_dir=None):
-    island_dir = os.path.dirname(island_results)
-    island_seqs_dir = os.path.join(island_dir, "tmp")
-    island_results_dir = os.path.join(island_dir, "results")
-    if os.path.exists(island_dir):
-        shutil.rmtree(island_dir)
-    for path in [island_dir, island_seqs_dir, island_results_dir]:
-        os.makedirs(path)
-    # dimob doesnt process assemblies; we write out each sequence to a tmp file prior to processing
-    # {id: {gbk: path_to_gbk, results: path_to_results}}
-    island_path_results = {}
-    with open (prokka.gbk, "r") as inf:
-        for i, rec in enumerate(SeqIO.parse(inf, "genbank")):
-            gbk = os.path.join(island_seqs_dir, "%i.gbk" %i)
-            result = os.path.join(island_results_dir, "results_%s" %i)
-            # dimob wont work if number of CDS's is 0
-            if rec.features:
-                ncds = sum([1 for feat in rec.features if feat.type == "CDS"])
-                if ncds > 0:
-                    island_path_results[rec.id] = {"gbk": gbk,
-                                                   "result": result}
-                    SeqIO.write(rec, gbk, "genbank")
-                else:
-                    print(str(
-                        "Note: contig {0} does not have any CDSs, " +
-                        "and will not be analyzed with Dimob").format(rec.id))
-
-    for k, v  in island_path_results.items():
-        # Note that dimob does not have an exe
-        island_cmd = make_containerized_cmd(
-            args=args,
-            sing=images_dict['dimob']["sing"],
-            image=images_dict['dimob']['image'],
-            dcommand=str(
-                "/input/{infile} /output/{outdir}" ).format(
-                    infile=os.path.relpath(v["gbk"]),
-                    outdir=os.path.relpath(v['result'])),
-            scommand=str(
-                "{infile} {outdir}" ).format(
-                    infile=v["gbk"],
-                    outdir=v['result']),
-        )
-        print(island_cmd)
-        subprocess.run([island_cmd],
-                       shell=sys.platform != "win32",
-                       stdout=subprocess.PIPE,
-                       stderr=subprocess.PIPE,
-                       check=True)
-        # modify output to include sequence name,
-        #   append to final results file
-        with open(v['result'], "r") as inf, open(island_results, "a") as outf:
-            for line in inf:
-                outf.write(k + "\t" + line)
-
-
-def run_abricate(args, abricate_dir, mobile_fasta, images_dict, all_results, subset="wgs", log_dir=None):
-    # remove old results
-    if os.path.exists(abricate_dir):
-        shutil.rmtree(abricate_dir)
-    os.makedirs(abricate_dir)
-    cmds = []
-    outfiles = []
-    for db in args.analyses:
-        print(db)
-        outfiles.append("{outdir}/{db}.tab".format(outdir=abricate_dir, db=db))
-        this_cmd = make_containerized_cmd(
-            args=args,
-            image=images_dict['abricate']['image'],
-            sing=images_dict['abricate']["sing"],
-            dcommand=str(
-                "--db {db}  /input/{infilefasta} > {outdir}/{db}.tab  " +
-                "2> {log}_{db}_log.txt").format(
-                    db=db,
-                    infilefasta=os.path.relpath(mobile_fasta),
-                    outdir=abricate_dir,
-                    log=os.path.join(log_dir, subset + "_abricate")),
-            scommand=str(
-                "--db {db}  {infilefasta} > {outdir}/{db}.tab  " +
-                "2> {log}_{db}_log.txt").format(
-                    db=db,
-                    infilefasta=mobile_fasta,
-                    outdir=abricate_dir,
-                    log=os.path.join(log_dir, subset + "_abricate")),
-        )
-        cmds.append(this_cmd)
-    for cmd in cmds:
-        print(cmd)
-        subprocess.run([cmd],
-                       shell=sys.platform != "win32",
-                       stdout=subprocess.PIPE,
-                       stderr=subprocess.PIPE,
-                       check=True)
-
-    with open(all_results, "w") as outf:
-        for f in outfiles:
-            for line in open(f, "r"):
-                outf.write(line)
-
-
-def make_cgview_tab_file(args, seqlen, cgview_entries):
-    """
-    http://wishart.biology.ualberta.ca/cgview/tab_input.html
-    """
-    results = []
-    header=[
-        "#{}".format(args.name),
-        "%{}".format(seqlen + 1),
-        "!strand\tslot\tstart\tstop\ttype\tlabel\tmouseover\thyperlink"
-    ]
-    results.extend(header)
-    results.extend(cgview_entries)
-    return results
-
-
-def run_cgview(args, cgview_tab, cgview_dir, images_dict, subset="wgs",log_dir=None):
-    if os.path.exists(cgview_dir):
-        shutil.rmtree(cgview_dir)
-    os.makedirs(cgview_dir)
-    cgview_cmd = make_containerized_cmd(
-        args=args,
-        image=images_dict['cgview']['image'],
-        sing=images_dict['cgview']["sing"],
-        dcommand=str(
-            "-i /input/{infilefasta} -f svg -o /output/{outdir} -I T").format(
-                exe=images_dict['cgview']['exe'],
-                infilefasta=os.path.relpath(cgview_tab),
-                outdir=os.path.join(os.path.relpath(cgview_dir), "cgview.svg"),
-                log=os.path.join(log_dir, subset + "_cgview.log")),
-        scommand=str(
-            "-i {infilefasta} -f svg -o {outdir} -I T").format(
-                exe=images_dict['cgview']['exe'],
-                infilefasta=cgview_tab,
-                outdir=os.path.join(cgview_dir, "cgview.svg"),
-                log=os.path.join(log_dir, subset + "_cgview.log")),
-
-    )
-    print(cgview_cmd)
-    subprocess.run([cgview_cmd],
-                   shell=sys.platform != "win32",
-                   stdout=subprocess.PIPE,
-                   stderr=subprocess.PIPE,
-                   check=True)
 
 
 def make_circleator():
@@ -753,6 +387,7 @@ def QC_bug(args, QC_dir, min_length, max_length, cov_threshold=.2, min_contig_le
                 }
     if header_info:
         # this gets skipped if we didnt have spades headers
+        # this should prrobably get changed to median or something;  shortie contigs have super high cover
         mean_coverage = sum([y['cov'] for x, y in header_info.items()])/ncontigs
         low_cov_contigs = {x: y for x, y in header_info.items() if
                        y['cov'] < (mean_coverage * cov_threshold)}
@@ -861,7 +496,7 @@ def main(args=None):
                 cov_threshold=args.QC_min_cov,
                 min_contig_length=args.QC_min_contig)
         print("running prokka")
-        run_annotation(args, contigs=args.contigs, prokka_dir=prokka_dir,
+        runners.run_annotation(args, contigs=args.contigs, prokka_dir=prokka_dir,
                        images_dict=images_dict, skip_rename=args.skip_rename,
                        new_name="renamed_preprokka_input.fasta",
                        subset="wgs", log_dir=log_dir)
@@ -905,11 +540,16 @@ def main(args=None):
         gff=prokka_gff,)
     ##########################  finding mobile element ################################3
     if args.restart_stage < 3 and any([x=="prophages" for x in args.elements]):
-        run_prophet(args, prokka, prophet_dir, images_dict, subset="mobile",log_dir=log_dir)
+        runners.run_prophet(args, prokka, prophet_dir, images_dict, subset="mobile",log_dir=log_dir)
     if args.restart_stage < 4 and any([x=="plasmids" for x in args.elements]):
-        run_mlplasmids(args, prokka, mlplasmids_results, images_dict, subset="mobile", log_dir=log_dir)
+        if "mobsuite" in args.plasmid_tools:
+            runners.run_mobsuite(args, prokka, mobsuite_dir, images_dict, subset="mobile", log_dir=log_dir)
+        if "mlplasmids" in args.plasmid_tools:
+            runners.run_mlplasmids(args, prokka, mlplasmids_results, images_dict, subset="mobile", log_dir=log_dir)
+        if "plasflow" in args.plasmid_tools:
+            runners.run_plasflow(args, prokka, plasflow_results, images_dict, subset="mobile", log_dir=log_dir)
     if args.restart_stage < 5 and any([x=="islands" for x in args.elements]):
-        run_dimob(args, prokka, island_results, images_dict, subset="mobile", log_dir=log_dir)
+        runners.run_dimob(args, prokka, island_results, images_dict, subset="mobile", log_dir=log_dir)
     if args.restart_stage < 6 and any([x=="is" for x in args.elements]):
         pass
 
@@ -920,19 +560,32 @@ def main(args=None):
         results_list = []
         if any([x=="prophages" for x in args.elements]):
             if os.path.exists(prophet_results) and os.path.getsize(prophet_results) > 0:
-                prophet_parsed_result = parse_prophet_results(prophet_results)
+                prophet_parsed_result = parsers.parse_prophet_results(prophet_results)
                 all_results.extend(prophet_parsed_result)
                 results_list.append(prophet_parsed_result)
         print(all_results)
         if any([x=="plasmids" for x in args.elements]):
-            if os.path.exists(mlplasmids_results) and os.path.getsize(mlplasmids_results) > 0:
-                mlplasmids_parsed_result = parse_mlplasmids_results(mlplasmids_results)
-                all_results.extend(mlplasmids_parsed_result)
-                results_list.append(mlplasmids_parsed_result)
+            if "mobsuite" in args.plasmid_tools:
+                if os.path.exists(mobsuite_results) and os.path.getsize(mobsuite_results) > 0:
+                    mobsuite_parsed_result = \
+                        parsers.parse_mobsuite_results(mobsuite_results)
+                    all_results.extend(mobsuite_parsed_result)
+                    results_list.append(mobsuite_parsed_result)
+            if "plasflow" in args.plasmid_tools:
+                if os.path.exists(plasflow_results) and os.path.getsize(plasflow_results) > 0:
+                    plasflow_parsed_result = \
+                        parsers.parse_plasflow_results(plasflow_results)
+                    all_results.extend(plasflow_parsed_result)
+                    results_list.append(plasflow_parsed_result)
+            if "mlplasmids" in args.plasmid_tools:
+                if os.path.exists(mlplasmids_results) and os.path.getsize(mlplasmids_results) > 0:
+                    mlplasmids_parsed_result = parsers.parse_mlplasmids_results(mlplasmids_results)
+                    all_results.extend(mlplasmids_parsed_result)
+                    results_list.append(mlplasmids_parsed_result)
         print(all_results)
         if any([x=="islands" for x in args.elements]):
             if os.path.exists(island_results) and os.path.getsize(island_results) > 0:
-                dimob_parsed_result = parse_dimob_results(island_results)
+                dimob_parsed_result = parsers.parse_dimob_results(island_results)
                 all_results.extend(dimob_parsed_result)
                 results_list.append(dimob_parsed_result)
 
@@ -956,7 +609,7 @@ def main(args=None):
             print("WARNING: none of the genome was detected to be mobile")
             return 0
 
-        tab_data = make_cgview_tab_file(args, cgview_entries=cgview_entries,
+        tab_data = runners.make_cgview_tab_file(args, cgview_entries=cgview_entries,
                                     seqlen=seq_length)
         cgview_data = os.path.join(interm_dir, "cgview.tab")
         with open(cgview_data, "w") as outf:
@@ -966,21 +619,21 @@ def main(args=None):
         # run abricate on both the mobile genome, and the entire sequence, for enrichment comparison
         abricate_data = os.path.join(results_dir, "mobile_abricate.tab")
         wgs_abricate_data = os.path.join(results_dir, "wgs_abricate.tab")
-        run_abricate(
+        runners.run_abricate(
             args, abricate_dir,
             mobile_fasta=mobile_genome_path_prefix + ".fasta",
             images_dict=images_dict,
             all_results=abricate_data,subset="mobile", log_dir=log_dir)
-        run_abricate(
+        runners.run_abricate(
             args, wgs_abricate_dir,
             mobile_fasta=args.contigs,
             images_dict=images_dict,
             all_results=wgs_abricate_data, subset="wgs", log_dir=log_dir)
         if not args.skip_reannotate:
-            run_annotation(
+            runners.run_annotation(
                 args, contigs=mobile_genome_path_prefix + ".fasta",
                 prokka_dir=mobile_prokka_dir, images_dict=images_dict,
-                skip_rename=False,
+                skip_rename=True,
                 new_name="tmp_mobile.fasta", subset="mobile", log_dir=log_dir)
             try:
                 shutil.copyfile(glob.glob(os.path.join(mobile_prokka_dir, "*.fna"))[0],
@@ -1016,14 +669,14 @@ def main(args=None):
         old_annofilt_reference = args.annofilt_reference
         args.annofilt_reference = tmp_pangenome
         print("Running annofilt to remove truncated CDSs")
-        run_annofilt(
+        runners.run_annofilt(
             args,
             annofilt_dir=mobile_annofilt_dir,
             prokka_dir=mobile_prokka_dir,
             images_dict=images_dict,
             subset="mobile",
             log_dir=log_dir)
-        run_annofilt(
+        runners.run_annofilt(
             args,
             annofilt_dir=wgs_annofilt_dir,
             prokka_dir=prokka_dir,
@@ -1044,8 +697,7 @@ def main(args=None):
             raise FileNotFoundError(
                 "File not found - something went " +
                 "wrong filtering annotations.")
-
-        # run_cgview(args, cgview_tab=cgview_data, cgview_dir=cgview_dir, images_dict=images_dict)
+        # runners.run_cgview(args, cgview_tab=cgview_data, cgview_dir=cgview_dir, images_dict=images_dict)
     
 
 if __name__ == "__main__":

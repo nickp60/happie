@@ -41,3 +41,18 @@ programs:
     maintainer: nickp60
     name: cgview
     exe: "java -jar /bin/cgview"
+  mobsuite:
+    version: 1.0
+    maintainer: nickp60
+    name: mobsuite
+    exe: null
+  plasflow:
+    version: 1.0
+    maintainer: nickp60
+    name: plasflow
+    exe: null
+  # antismash:
+  #   version: 4.2.0
+  #   maintainer: antismash
+  #   name: standalone-lite
+  #   exe: null
