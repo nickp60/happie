@@ -1,25 +1,6 @@
 #!/usr/bin/env python3
-#-*- coding: utf-8 -*-
-import re
-import argparse
-import sys
-import shutil
-import os
-import unittest
-import itertools
-import multiprocessing
-import random
-import string
-import subprocess
-import glob
-# import pkg_resources
-import yaml
-from argparse import Namespace
-from Bio.Seq import Seq
-from Bio import SeqIO
-from Bio.SeqRecord import SeqRecord
-from Bio.Alphabet import IUPAC
-from Bio.SeqFeature import SeqFeature, FeatureLocation
+# -*- coding: utf-8 -*-
+
 
 def parse_prophet_results(results):
     results_text = []
@@ -32,7 +13,7 @@ def parse_prophet_results(results):
     for line in results_text:
         subresults = []
         for i in [0, 1, 2, 4, 5]:
-            if i in [4,5]:
+            if i in [4, 5]:
                 subresults.append(int(line[i]))
             else:
                 subresults.append(line[i])
@@ -51,7 +32,7 @@ def parse_dimob_results(results):
     for line in results_text:
         subresults = []
         for i in [0, 1, 2, 4, 5]:
-            if i in [4,5]:
+            if i in [4, 5]:
                 subresults.append(int(line[i]))
             else:
                 subresults.append(line[i])

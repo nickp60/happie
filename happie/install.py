@@ -1,36 +1,27 @@
 #!/usr/bin/env python3
-#-*- coding: utf-8 -*-
-import re
+# -*- coding: utf-8 -*-
 import argparse
 import sys
-import shutil
 import os
-import unittest
-import itertools
-import multiprocessing
 import subprocess
-import glob
-import yaml
-import pkg_resources
-
-from Bio.Seq import Seq
-from Bio import SeqIO
-from Bio.SeqRecord import SeqRecord
 
 from . import __version__
 from . import shared_methods as sm
 
+
 def get_args():  # pragma: no cover
     parser = argparse.ArgumentParser(
-        description="fetch or update the docker images used as part of the happie pipeline",
+        description="fetch or update the docker images used " +
+        "as part of the happie pipeline",
         add_help=False)
     parser.add_argument("--virtualization", action="store",
-                        help="Whether this will be run with Docker or Singularity",
+                        help="Whether this will be run with " +
+                        "Docker or Singularity",
                         choices=["docker", "singularity"],
                         default="docker")
     parser.add_argument("-i", "--images_dir", action="store",
-                        help="if using singularity, where to store your "
-                        +"singularity images",
+                        help="if using singularity, where to store your " +
+                        "singularity images",
                         default=sm.get_happie_dir())
     optional = parser.add_argument_group('optional arguments')
     optional.add_argument("-h", "--help",
@@ -66,12 +57,14 @@ def install_image(args, image_dict):
         cmds.append("mv {sing_name} {args.images_dir}".format(**locals()))
     for cmd in cmds:
         print(cmd)
-        subprocess.run([cmd],
-                       shell=sys.platform != "win32",
-                       stdout=subprocess.PIPE,
-                       stderr=subprocess.PIPE,
-                       # docker propperly pulls; singularity erros if image exists
-                       check=args.virtualization=="docker")
+        subprocess.run(
+            [cmd],
+            shell=sys.platform != "win32",
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            # docker propperly pulls; singularity erros if
+            # image exists
+            check=args.virtualization == "docker")
 
 
 def install_programs(args, config):

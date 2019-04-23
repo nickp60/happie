@@ -1,28 +1,15 @@
 #!/usr/bin/env python3
-#-*- coding: utf-8 -*-
-import re
-import argparse
+# -*- coding: utf-8 -*-
 import sys
 import shutil
 import os
-import unittest
-import itertools
-import multiprocessing
-import random
-import string
 import subprocess
-import glob
-# import pkg_resources
-import yaml
-from argparse import Namespace
-from Bio.Seq import Seq
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
-from Bio.Alphabet import IUPAC
-from Bio.SeqFeature import SeqFeature, FeatureLocation
 
 
-def make_containerized_cmd(args, image, dcommand, scommand, indir=None, outdir=None, sing=None):
+def make_containerized_cmd(args, image, dcommand, scommand,
+                           indir=None, outdir=None, sing=None):
     """
     note that memory must be provided in gigabytes
     """
@@ -132,7 +119,8 @@ def run_annofilt(args, annofilt_dir, prokka_dir, images_dict,
                    check=True)
 
 
-def run_prophet(args, prokka, prophet_dir, images_dict, subset="wgs", log_dir=None):
+def run_prophet(args, prokka, prophet_dir, images_dict,
+                subset="wgs", log_dir=None):
     if os.path.exists(prophet_dir):
         shutil.rmtree(prophet_dir)
     prophet_cmd = make_containerized_cmd(
@@ -164,12 +152,13 @@ def run_prophet(args, prokka, prophet_dir, images_dict, subset="wgs", log_dir=No
                    check=True)
 
 
-def run_mlplasmids(args, prokka, mlplasmids_results, images_dict, subset="wgs", log_dir=None):
+def run_mlplasmids(args, prokka, mlplasmids_results, images_dict,
+                   subset="wgs", log_dir=None):
     if os.path.exists(mlplasmids_results):
         os.remove(mlplasmids_results)
     mlplasmids_cmd = make_containerized_cmd(
         args=args,
-                image=images_dict['mlplasmids']['image'],
+        image=images_dict['mlplasmids']['image'],
         sing=images_dict['mlplasmids']["sing"],
         dcommand=str(
             "/input/{infilefasta} /output/{outdir}  " +
@@ -193,7 +182,9 @@ def run_mlplasmids(args, prokka, mlplasmids_results, images_dict, subset="wgs", 
                    stderr=subprocess.PIPE,
                    check=True)
 
-def run_plasflow(args, prokka, plasflow_results, images_dict, subset="wgs", log_dir=None):
+
+def run_plasflow(args, prokka, plasflow_results, images_dict,
+                 subset="wgs", log_dir=None):
     if os.path.exists(plasflow_results):
         os.remove(plasflow_results)
     plasflow_cmd = make_containerized_cmd(
@@ -222,13 +213,13 @@ def run_plasflow(args, prokka, plasflow_results, images_dict, subset="wgs", log_
 
 
 def run_mobsuite(args, prokka,  mobsuite_results, images_dict,
-                  subset="wgs", log_dir=None):
+                 subset="wgs", log_dir=None):
     if os.path.exists(mobsuite_results):
         shutil.rmtree(mobsuite_results)
     os.makedirs(mobsuite_results)
     mobsuite_cmd = make_containerized_cmd(
         args=args,
-                image=images_dict['mobsuite']['image'],
+        image=images_dict['mobsuite']['image'],
         sing=images_dict['mobsuite']["sing"],
         dcommand=str(
             "--infile /input/{infilefasta} --outdir /output/{outdir}  " +
@@ -251,7 +242,8 @@ def run_mobsuite(args, prokka,  mobsuite_results, images_dict,
                    check=True)
 
 
-def run_dimob(args, prokka, island_results, images_dict, subset="wgs",log_dir=None):
+def run_dimob(args, prokka, island_results, images_dict,
+              subset="wgs", log_dir=None):
     island_dir = os.path.dirname(island_results)
     island_seqs_dir = os.path.join(island_dir, "tmp")
     island_results_dir = os.path.join(island_dir, "results")
@@ -259,13 +251,14 @@ def run_dimob(args, prokka, island_results, images_dict, subset="wgs",log_dir=No
         shutil.rmtree(island_dir)
     for path in [island_dir, island_seqs_dir, island_results_dir]:
         os.makedirs(path)
-    # dimob doesnt process assemblies; we write out each sequence to a tmp file prior to processing
+    # dimob doesnt process assemblies;
+    # we write out each sequence to a tmp file prior to processing
     # {id: {gbk: path_to_gbk, results: path_to_results}}
     island_path_results = {}
-    with open (prokka.gbk, "r") as inf:
+    with open(prokka.gbk, "r") as inf:
         for i, rec in enumerate(SeqIO.parse(inf, "genbank")):
-            gbk = os.path.join(island_seqs_dir, "%i.gbk" %i)
-            result = os.path.join(island_results_dir, "results_%s" %i)
+            gbk = os.path.join(island_seqs_dir, "%i.gbk" % i)
+            result = os.path.join(island_results_dir, "results_%s" % i)
             # dimob wont work if number of CDS's is 0
             if rec.features:
                 ncds = sum([1 for feat in rec.features if feat.type == "CDS"])
@@ -278,18 +271,18 @@ def run_dimob(args, prokka, island_results, images_dict, subset="wgs",log_dir=No
                         "Note: contig {0} does not have any CDSs, " +
                         "and will not be analyzed with Dimob").format(rec.id))
 
-    for k, v  in island_path_results.items():
+    for k, v in island_path_results.items():
         # Note that dimob does not have an exe
         island_cmd = make_containerized_cmd(
             args=args,
             sing=images_dict['dimob']["sing"],
             image=images_dict['dimob']['image'],
             dcommand=str(
-                "/input/{infile} /output/{outdir}" ).format(
+                "/input/{infile} /output/{outdir}").format(
                     infile=os.path.relpath(v["gbk"]),
                     outdir=os.path.relpath(v['result'])),
             scommand=str(
-                "{infile} {outdir}" ).format(
+                "{infile} {outdir}").format(
                     infile=v["gbk"],
                     outdir=v['result']),
         )
@@ -306,7 +299,8 @@ def run_dimob(args, prokka, island_results, images_dict, subset="wgs",log_dir=No
                 outf.write(k + "\t" + line)
 
 
-def run_abricate(args, abricate_dir, mobile_fasta, images_dict, all_results, subset="wgs", log_dir=None):
+def run_abricate(args, abricate_dir, mobile_fasta, images_dict,
+                 all_results, subset="wgs", log_dir=None):
     # remove old results
     if os.path.exists(abricate_dir):
         shutil.rmtree(abricate_dir)
@@ -355,7 +349,7 @@ def make_cgview_tab_file(args, seqlen, cgview_entries):
     http://wishart.biology.ualberta.ca/cgview/tab_input.html
     """
     results = []
-    header=[
+    header = [
         "#{}".format(args.name),
         "%{}".format(seqlen + 1),
         "!strand\tslot\tstart\tstop\ttype\tlabel\tmouseover\thyperlink"
@@ -365,7 +359,8 @@ def make_cgview_tab_file(args, seqlen, cgview_entries):
     return results
 
 
-def run_cgview(args, cgview_tab, cgview_dir, images_dict, subset="wgs",log_dir=None):
+def run_cgview(args, cgview_tab, cgview_dir, images_dict,
+               subset="wgs", log_dir=None):
     if os.path.exists(cgview_dir):
         shutil.rmtree(cgview_dir)
     os.makedirs(cgview_dir)

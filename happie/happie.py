@@ -378,9 +378,9 @@ def QC_bug(args, QC_dir, min_length, max_length, cov_threshold=.2,
         raise ValueError(
             "Assembly length {} falls outside of QC range of {} to {}".format(
                 total_length, min_length, max_length)
-    )
+        )
     short_contigs = {x[0]: x[1] for x in lengths if
-                       x[1] < min_contig_length}
+                     x[1] < min_contig_length}
     log_strings.append("N too short\t" + str(len(short_contigs)))
 
     ncontigs = len(lengths)
@@ -397,7 +397,8 @@ def QC_bug(args, QC_dir, min_length, max_length, cov_threshold=.2,
                     "happie only parses SPAdes headers")
             else:
                 # forr instance, NODE_1_length_10442_cov_5.92661
-                p = re.compile(r'NODE_(?P<node>\d*?)_length_(?P<length>\d*?)_cov_(?P<cov>[\d|\.]*)')
+                p = re.compile(r'NODE_(?P<node>\d*?)_length_(?P' +
+                               r'<length>\d*?)_cov_(?P<cov>[\d|\.]*)')
                 m = p.search(rec.id)
                 header_info[rec.id] = {
                     "length": int(m.group("length")),
@@ -428,7 +429,7 @@ def QC_bug(args, QC_dir, min_length, max_length, cov_threshold=.2,
                 os.path.splitext(args.contigs)[0]) + "_postQC.fasta")
         with open(args.contigs, "r") as inf, open(outfile, "w") as outf:
             for rec in SeqIO.parse(inf, "fasta"):
-                if not rec.id in bad_contigs.keys():
+                if rec.id not in bad_contigs.keys():
                     retained_length += len(rec.seq)
                     SeqIO.write(rec, outf, "fasta")
         args.contigs = outfile
@@ -473,17 +474,21 @@ def main(args=None):
     prophet_results = os.path.join(prophet_dir, "phages_coords")
     island_dir = os.path.join(interm_dir, "dimob", "")
     island_results = os.path.join(interm_dir, "dimob", "dimob_results")
+    plasflow_dir = os.path.join(interm_dir, "plasflow", "")
+    plasflow_results = os.path.join(plasflow_dir, "results.txt")
+    mobsuite_dir = os.path.join(interm_dir, "mobsuite", "")
+    mobsuite_results = os.path.join(mobsuite_dir, "contig_report.txt")
     mlplasmids_dir = os.path.join(interm_dir, "mlplasmids", "")
     mlplasmids_results = os.path.join(interm_dir, "mlplasmids", "results.txt")
     abricate_dir = os.path.join(interm_dir, "mobile_abricate", "")
     wgs_abricate_dir = os.path.join(interm_dir, "wgs_abricate", "")
     mobile_annofilt_dir = os.path.join(interm_dir, "mobile_annofilt", "")
     wgs_annofilt_dir = os.path.join(interm_dir, "wgs_annofilt", "")
-    cgview_dir = os.path.join(interm_dir, "cgview", "")
+    # cgview_dir = os.path.join(interm_dir, "cgview", "")
     # make sub directories. We don't care if they already exist;
     #  cause we clobber them later if they will cause problems for reexecution
     # except dont make prokka dirs
-    for path in [results_dir,prophet_dir, mlplasmids_dir, island_dir,
+    for path in [results_dir, prophet_dir, mlplasmids_dir, island_dir,
                  abricate_dir, wgs_abricate_dir, log_dir, QC_dir]:
         os.makedirs(path, exist_ok=True)
 
@@ -496,7 +501,7 @@ def main(args=None):
         isfasta = False
         with open(args.contigs, "r") as inf:
             for line in inf:
-                if  line.startswith(">"):
+                if line.startswith(">"):
                     isfasta = True
                 break
         if not isfasta:
@@ -565,12 +570,16 @@ def main(args=None):
         fna=prokka_fna,
         gbk=prokka_gbk,
         gff=prokka_gff,)
-    ##########################  finding mobile element ########################
-    if args.restart_stage < 3 and any([x=="prophages" for x in args.elements]):
+    #  #########################  finding mobile element ######################
+    if (
+            args.restart_stage < 3 and
+            any([x == "prophages" for x in args.elements])):
         runners.run_prophet(
             args, prokka, prophet_dir, images_dict,
-            subset="mobile",log_dir=log_dir)
-    if args.restart_stage < 4 and any([x=="plasmids" for x in args.elements]):
+            subset="mobile", log_dir=log_dir)
+    if (
+            args.restart_stage < 4 and
+            any([x == "plasmids" for x in args.elements])):
         if "mobsuite" in args.plasmid_tools:
             runners.run_mobsuite(
                 args, prokka, mobsuite_dir, images_dict,
@@ -583,48 +592,54 @@ def main(args=None):
             runners.run_plasflow(
                 args, prokka, plasflow_results, images_dict,
                 subset="mobile", log_dir=log_dir)
-    if args.restart_stage < 5 and any([x=="islands" for x in args.elements]):
+    if args.restart_stage < 5 and any([x == "islands" for x in args.elements]):
         runners.run_dimob(
             args, prokka, island_results, images_dict,
             subset="mobile", log_dir=log_dir)
-    if args.restart_stage < 6 and any([x=="is" for x in args.elements]):
+    if args.restart_stage < 6 and any([x == "is" for x in args.elements]):
         pass
 
-    if args.restart_stage < 7:
     ###########################################################################
     # program type sequence start end
+
+    if args.restart_stage < 7:
         all_results = []
-        if any([x=="prophages" for x in args.elements]):
-            if os.path.exists(prophet_results) and \
-               os.path.getsize(prophet_results) > 0:
+        if any([x == "prophages" for x in args.elements]):
+            if (
+                    os.path.exists(prophet_results) and
+                    os.path.getsize(prophet_results) > 0):
                 all_results.extend(
                     parsers.parse_prophet_results(
                         prophet_results))
         print(all_results)
-        if any([x=="plasmids" for x in args.elements]):
+        if any([x == "plasmids" for x in args.elements]):
             if "mobsuite" in args.plasmid_tools:
-                if os.path.exists(mobsuite_results) and \
-                   os.path.getsize(mobsuite_results) > 0:
+                if (
+                        os.path.exists(mobsuite_results) and
+                        os.path.getsize(mobsuite_results) > 0):
                     all_results.extend(
                         parsers.parse_mobsuite_results(
                             mobsuite_results))
             if "plasflow" in args.plasmid_tools:
-                if os.path.exists(plasflow_results) and \
-                   os.path.getsize(plasflow_results) > 0:
+                if (
+                        os.path.exists(plasflow_results) and
+                        os.path.getsize(plasflow_results) > 0):
 
                     all_results.extend(
                         parsers.parse_plasflow_results(
                             plasflow_results))
             if "mlplasmids" in args.plasmid_tools:
-                if os.path.exists(mlplasmids_results) and \
-                   os.path.getsize(mlplasmids_results) > 0:
+                if (
+                        os.path.exists(mlplasmids_results) and
+                        os.path.getsize(mlplasmids_results) > 0):
                     all_results.extend(
                         parsers.parse_mlplasmids_results(
                             mlplasmids_results))
         print(all_results)
-        if any([x=="islands" for x in args.elements]):
-            if os.path.exists(island_results) and
-            os.path.getsize(island_results) > 0:
+        if any([x == "islands" for x in args.elements]):
+            if (
+                    os.path.exists(island_results) and
+                    os.path.getsize(island_results) > 0):
                 all_results.extend(
                     parsers.parse_dimob_results(island_results))
         non_overlapping_results = condensce_regions(all_results)
@@ -649,7 +664,7 @@ def main(args=None):
 
         tab_data = runners.make_cgview_tab_file(
             args, cgview_entries=cgview_entries,
-                                    seqlen=seq_length)
+            seqlen=seq_length)
         cgview_data = os.path.join(interm_dir, "cgview.tab")
         with open(cgview_data, "w") as outf:
             for line in tab_data:
@@ -663,7 +678,7 @@ def main(args=None):
             args, abricate_dir,
             mobile_fasta=mobile_genome_path_prefix + ".fasta",
             images_dict=images_dict,
-            all_results=abricate_data,subset="mobile", log_dir=log_dir)
+            all_results=abricate_data, subset="mobile", log_dir=log_dir)
         runners.run_abricate(
             args, wgs_abricate_dir,
             mobile_fasta=args.contigs,
@@ -676,10 +691,12 @@ def main(args=None):
                 skip_rename=True,
                 new_name="tmp_mobile.fasta", subset="mobile", log_dir=log_dir)
             try:
-                shutil.copyfile(glob.glob(os.path.join(mobile_prokka_dir, "*.fna"))[0],
-                                os.path.join(results_dir, args.name + '.fasta'))
-                shutil.copyfile(glob.glob(os.path.join(mobile_prokka_dir, "*.gbk"))[0],
-                                os.path.join(results_dir, args.name + '.gbk'))
+                shutil.copyfile(
+                    glob.glob(os.path.join(mobile_prokka_dir, "*.fna"))[0],
+                    os.path.join(results_dir, args.name + '.fasta'))
+                shutil.copyfile(
+                    glob.glob(os.path.join(mobile_prokka_dir, "*.gbk"))[0],
+                    os.path.join(results_dir, args.name + '.gbk'))
             except IndexError:
                 raise FileNotFoundError(
                     "File not found - something went " +
@@ -701,12 +718,12 @@ def main(args=None):
                 "File not found - something went " +
                 "wrong filtering annotations.")
     else:
-        mobile_prokka_fna = glob.glob(
-            os.path.join(mobile_prokka_dir, "*.fna"))[0]
+        # mobile_prokka_fna = glob.glob(
+        #     os.path.join(mobile_prokka_dir, "*.fna"))[0]
         # copy pan_genome temporarily:
         tmp_pangenome = os.path.join(args.output, "tmp_pangenome.fasta")
         shutil.copyfile(args.annofilt_reference, tmp_pangenome)
-        old_annofilt_reference = args.annofilt_reference
+        #  old_annofilt_reference = args.annofilt_reference
         args.annofilt_reference = tmp_pangenome
         print("Running annofilt to remove truncated CDSs")
         runners.run_annofilt(
@@ -725,19 +742,24 @@ def main(args=None):
             log_dir=log_dir)
         os.remove(tmp_pangenome)
         try:
-            shutil.copyfile(glob.glob(os.path.join(wgs_annofilt_dir, "*.gbk"))[0],
-                            os.path.join(results_dir, args.name + '.gbk'))
-            shutil.copyfile(glob.glob(os.path.join(mobile_annofilt_dir, "*.gbk"))[0],
-                            os.path.join(results_dir, args.name + '.gbk'))
-            shutil.copyfile(glob.glob(os.path.join(wgs_annofilt_dir, "*.gff"))[0],
-                            os.path.join(results_dir, args.name + '.gff'))
-            shutil.copyfile(glob.glob(os.path.join(mobile_annofilt_dir, "*.gff"))[0],
-                            os.path.join(results_dir, args.name + '.gff'))
+            shutil.copyfile(
+                glob.glob(os.path.join(wgs_annofilt_dir, "*.gbk"))[0],
+                os.path.join(results_dir, args.name + '.gbk'))
+            shutil.copyfile(
+                glob.glob(os.path.join(mobile_annofilt_dir, "*.gbk"))[0],
+                os.path.join(results_dir, args.name + '.gbk'))
+            shutil.copyfile(
+                glob.glob(os.path.join(wgs_annofilt_dir, "*.gff"))[0],
+                os.path.join(results_dir, args.name + '.gff'))
+            shutil.copyfile(
+                glob.glob(os.path.join(mobile_annofilt_dir, "*.gff"))[0],
+                os.path.join(results_dir, args.name + '.gff'))
         except IndexError:
             raise FileNotFoundError(
                 "File not found - something went " +
                 "wrong filtering annotations.")
-        # runners.run_cgview(args, cgview_tab=cgview_data, cgview_dir=cgview_dir, images_dict=images_dict)
+        # runners.run_cgview(args, cgview_tab=cgview_data,
+        #  cgview_dir=cgview_dir, images_dict=images_dict)
 
 
 if __name__ == "__main__":
