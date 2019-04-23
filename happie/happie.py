@@ -83,9 +83,9 @@ def get_args():  # pragma: no cover
                           choices=["Escherichia coli",
                                    "Klebsiella pneumoniae",
                                    "Enterococcus faecium"],
-                          help="Use mob-suite tools for plasmid ID rather "+
+                          help="Use mob-suite tools for plasmid ID rather " +
                           "than mlplasmids.  Use this option if not " +
-                          "working on E. coli, E. faecium, or K "+
+                          "working on E. coli, E. faecium, or K " +
                           " pneumoniae ")
     optional.add_argument("--analyses", dest='analyses',
                           action="store", nargs="*",
@@ -108,7 +108,8 @@ def get_args():  # pragma: no cover
                           default=1)
     optional.add_argument("--skip_annofilt", dest="skip_annofilt",
                           action="store_true",
-                          help="skip annotation filtering mobile genome with annofilt.")
+                          help="skip annotation filtering mobile genome " +
+                          "with annofilt.")
     optional.add_argument("--annofilt_reference", dest='annofilt_reference',
                           help="if running annofilt, set this to the " +
                           "species-specific pangnome for annotation " +
@@ -116,19 +117,23 @@ def get_args():  # pragma: no cover
     optional.add_argument("--QC_min_assembly", dest='QC_min_assembly',
                           default=3700000,
                           type=int,
-                          help="if running QC, minimum total assembly length; default: %(default)s")
+                          help="if running QC, minimum total " +
+                          "assembly length; default: %(default)s")
     optional.add_argument("--QC_max_assembly", dest='QC_max_assembly',
                           default=6400000,
                           type=int,
-                          help="if running QC, maximum total assembly length; default: %(default)s")
+                          help="if running QC, maximum total assembly " +
+                          "length; default: %(default)s")
     optional.add_argument("--QC_min_contig", dest='QC_min_contig',
                           default=800,
                           type=int,
-                          help="if running QC, minimum contig length; default: %(default)s")
+                          help="if running QC, minimum contig length; " +
+                          "default: %(default)s")
     optional.add_argument("--QC_min_cov", dest='QC_min_cov',
                           default=0.2,
                           type=float,
-                          help="if running QC, minimum coverage fraction of mean coverage; default: %(default)s")
+                          help="if running QC, minimum coverage " +
+                          "fraction of mean coverage; default: %(default)s")
     optional.add_argument("-h", "--help",
                           action="help", default=argparse.SUPPRESS,
                           help="Displays this help message")
@@ -148,7 +153,8 @@ def test_exes(exes):
 def condensce_regions(all_results):
     merged_labeled = []
     for seq in set([x[2] for x in all_results]):
-        intervals = [(int(x[3]), int(x[4])) for x in all_results if x[2] == seq]
+        intervals = [(int(x[3]), int(x[4])) for x in
+                     all_results if x[2] == seq]
         sorted_by_lower_bound = sorted(intervals, key=lambda tup: tup[0])
         # for i in intervals:
         #     print(i)
@@ -162,7 +168,8 @@ def condensce_regions(all_results):
                 # we know via sorting that lower[0] <= higher[0]
                 if higher[0] <= lower[1]:
                     upper_bound = max(lower[1], higher[1])
-                    merged[-1] = (lower[0], upper_bound)  # replace by merged interval
+                    # replace by merged interval
+                    merged[-1] = (lower[0], upper_bound)
                 else:
                     merged.append(higher)
         for i in merged:
@@ -170,12 +177,13 @@ def condensce_regions(all_results):
     return merged_labeled
 
 
-def annotate_overlaps():
-    for prog, feat, seq, start, end in all_results:
-        pass
+# def annotate_overlaps():
+#     for prog, feat, seq, start, end in all_results:
+#         pass
 
 
-def write_annotated_mobile_genome(contigs,seed, output_path, all_results, non_overlapping_results):
+def write_annotated_mobile_genome(contigs,seed, output_path, all_results,
+                                  non_overlapping_results):
     """write out all regions of interest to a single fasta file
     we want to make our hit list along side this for cgview
     ring 1 is the "genome"
@@ -192,21 +200,26 @@ def write_annotated_mobile_genome(contigs,seed, output_path, all_results, non_ov
                              program,
                              "github.com/nickp60/happie"]))
     """
-    cgview_entries= []
+    cgview_entries = []
     total_length = 0
-    programs = set([x[0] for x in all_results ])
+    programs = set([x[0] for x in all_results])
     # start at ring 2; righ 1 is the base
-    program_rings = dict(zip(programs, ([x + 2 for x in range(len(programs))])))
+    program_rings = dict(
+        zip(programs,
+            ([x + 2 for x in range(len(programs))])))
     # make prefix based on seed
     random.seed(seed)
-    locus_prefix = ''.join(random.choice(string.ascii_uppercase) for x in range(6))
+    locus_prefix = ''.join(
+        random.choice(string.ascii_uppercase) for x in range(6))
     locus_start, locus_increment = 5, 5
-    with open(contigs, "r") as inf, open(output_path + ".fasta", "w") as outfasta, \
+    with open(contigs, "r") as inf, \
+         open(output_path + ".fasta", "w") as outfasta, \
          open(output_path + ".gbk", "w") as outgbk:
         for rec in SeqIO.parse(inf, "fasta"):
             ring = 1
             entry_start = total_length + 1
-            regions_subset = [(x[3], x[4]) for x in non_overlapping_results if x[2] == rec.id]
+            regions_subset = [(x[3], x[4]) for x in
+                              non_overlapping_results if x[2] == rec.id]
             if not regions_subset:
                 continue
             seq = ""
@@ -270,7 +283,6 @@ def write_annotated_mobile_genome(contigs,seed, output_path, all_results, non_ov
 
 
 def write_out_names_key(inA, inB, outfile):
-    contig_key = []
     inA_names = []
     inB_names = []
     with open(inA, "r") as inAf:
@@ -284,8 +296,8 @@ def write_out_names_key(inA, inB, outfile):
         "length of fasta before and after prokka is different!"
     with open(outfile, "w") as outf:
         outf.write("original_name\toriginal_length\tnew_name\tnew_length\n")
-        for a, b  in zip(sorted(inA_names, reverse=True), \
-                         sorted(inB_names, reverse=True)):
+        for a, b in zip(sorted(inA_names, reverse=True),
+                        sorted(inB_names, reverse=True)):
             outf.write("{}\t{}\t{}\t{}\n".format(
                 a[0], a[1], b[0], b[1]))
 
@@ -324,7 +336,7 @@ def read_in_yaml_args(outpath):
     if not os.path.exists(outpath):
         raise FileNotFoundError("cannot open file %s" % outpath)
     with open(outpath, "r") as outf:
-        new_args = yaml.load( outf)
+        new_args = yaml.load(outf)
     return new_args
 
 
@@ -333,20 +345,26 @@ def recheck_required_args(args):
         raise ValueError("no --contigs provided! see 'happie -h'")
     if not args.skip_annofilt:
         if args.annofilt_reference is None:
-            raise ValueError("If using annofilt, you must provide a species specific pangenome from whole genomes for comparison. See the annofilt documentaion for more details. <https://github.com/nickp60/annofilt/>")
+            raise ValueError(
+                "If using annofilt, you must provide a species specific " +
+                "pangenome from whole genomes for comparison. See " +
+                "the annofilt documentaion for more details. " +
+                "<https://github.com/nickp60/annofilt/>")
 
 
-def coords_to_merged_gff(coords):
-    all_coords = [x[3] for x in coords]
-    all_coords.expand([x[4] for x in coords])
-    mn, mx = min(all_coords), max(all_coords)
-    pass
+# def coords_to_merged_gff(coords):
+#     all_coords = [x[3] for x in coords]
+#     all_coords.expand([x[4] for x in coords])
+#     mn, mx = min(all_coords), max(all_coords)
+#     pass
 
 
-def QC_bug(args, QC_dir, min_length, max_length, cov_threshold=.2, min_contig_length=800):
+def QC_bug(args, QC_dir, min_length, max_length, cov_threshold=.2,
+           min_contig_length=800):
     # check assembly size
     log_strings = []
     lengths = []
+    qclog = os.path.join(args.output, "sublogs", "QC.log")
     with open(args.contigs) as inf:
         for rec in SeqIO.parse(inf, "fasta"):
             lengths.append([rec.id, len(rec.seq)])
@@ -355,7 +373,7 @@ def QC_bug(args, QC_dir, min_length, max_length, cov_threshold=.2, min_contig_le
     log_strings.append("N sequences\t" + str(len(lengths)))
     log_strings.append("Assembly Length\t" + str(total_length))
     if not min_length < total_length < max_length:
-        with open(os.path.join(args.output, "sublogs", "QC.log"), "w") as logoutf:
+        with open(qclog, "w") as logoutf:
             for s in log_strings:
                 logoutf.write(s + "\n")
         raise ValueError(
@@ -375,10 +393,11 @@ def QC_bug(args, QC_dir, min_length, max_length, cov_threshold=.2, min_contig_le
         for rec in SeqIO.parse(inf, "fasta"):
             if not rec.id.startswith("NODE"):
                 spades_headers = False
-                # log_strings.append("Warning: cannot QC by assembly coverage; " +
-                #       "happie only parses SPAdes headers")
+                log_strings.append(
+                    "Warning: cannot QC by assembly coverage; " +
+                    "happie only parses SPAdes headers")
             else:
-                # NODE_1_length_10442_cov_5.92661
+                # forr instance, NODE_1_length_10442_cov_5.92661
                 p = re.compile(r'NODE_(?P<node>\d*?)_length_(?P<length>\d*?)_cov_(?P<cov>[\d|\.]*)')
                 m = p.search(rec.id)
                 header_info[rec.id] = {
@@ -387,10 +406,12 @@ def QC_bug(args, QC_dir, min_length, max_length, cov_threshold=.2, min_contig_le
                 }
     if header_info:
         # this gets skipped if we didnt have spades headers
-        # this should prrobably get changed to median or something;  shortie contigs have super high cover
-        mean_coverage = sum([y['cov'] for x, y in header_info.items()])/ncontigs
+        # this should prrobably get changed to median or something;
+        # shortie contigs have super high cover
+        mean_coverage = sum([y['cov'] for x, y in
+                             header_info.items()])/ncontigs
         low_cov_contigs = {x: y for x, y in header_info.items() if
-                       y['cov'] < (mean_coverage * cov_threshold)}
+                           y['cov'] < (mean_coverage * cov_threshold)}
     bad_contigs = {**short_contigs, **low_cov_contigs}
     if spades_headers:
         log_strings.append("N low coverage\t" + str(len(low_cov_contigs)))
@@ -404,7 +425,8 @@ def QC_bug(args, QC_dir, min_length, max_length, cov_threshold=.2, min_contig_le
         # make a filtered file
         outfile = os.path.join(
             args.output, QC_dir,
-            os.path.basename(os.path.splitext(args.contigs)[0]) + "_postQC.fasta")
+            os.path.basename(
+                os.path.splitext(args.contigs)[0]) + "_postQC.fasta")
         with open(args.contigs, "r") as inf, open(outfile, "w") as outf:
             for rec in SeqIO.parse(inf, "fasta"):
                 if not rec.id in bad_contigs.keys():
@@ -412,14 +434,15 @@ def QC_bug(args, QC_dir, min_length, max_length, cov_threshold=.2, min_contig_le
                     SeqIO.write(rec, outf, "fasta")
         args.contigs = outfile
     log_strings.append("Filtered assembly length\t" + str(retained_length))
-    with open(os.path.join(args.output, "sublogs", "QC.log"), "w") as logoutf:
+    with open(qclog, "w") as logoutf:
         for s in log_strings:
             logoutf.write(s + "\n")
     if len(bad_contigs) >= ncontigs:
-        raise ValueError("All of the contigs are filtered out with the current criteria")
+        raise ValueError(
+            "All of the contigs are filtered out with the current criteria")
 
-    log_strings.append("Filtered assembly is " + str(retained_length) + " bases")
-
+    log_strings.append("Filtered assembly is " +
+                       str(retained_length) + " bases")
 
 
 def main(args=None):
@@ -434,7 +457,7 @@ def main(args=None):
         if args.restart_stage == 1:
             os.makedirs(args.output, exist_ok=False)
     except FileExistsError:
-        print("Output directory already exsists! "+
+        print("Output directory already exsists! " +
               "Please chose other desination or, " +
               "if restarting previous analysis, set --stages 2 or above")
         sys.exit(1)
@@ -450,7 +473,8 @@ def main(args=None):
     island_dir = os.path.join(args.output, "dimob", "")
     island_results = os.path.join(args.output, "dimob", "dimob_results")
     mobsuite_dir = os.path.join(args.output, "mobsuite", "")
-    mobsuite_results = os.path.join(args.output, "mobsuite", "contig_report.txt")
+    mobsuite_results = os.path.join(
+        args.output, "mobsuite", "contig_report.txt")
     plasflow_dir = os.path.join(args.output, "plasflow", "")
     plasflow_results = os.path.join(args.output, "plasflow", "results.txt")
     mlplasmids_dir = os.path.join(args.output, "mlplasmids", "")
@@ -469,7 +493,9 @@ def main(args=None):
         os.makedirs(path, exist_ok=True)
 
     # write out args for easier re-running
-    write_out_yaml_args(args, outpath=os.path.join(args.output, "happie_args.yaml"))
+    write_out_yaml_args(
+        args,
+        outpath=os.path.join(args.output, "happie_args.yaml"))
 
     if args.restart_stage < 2:
         isfasta = False
@@ -499,10 +525,11 @@ def main(args=None):
                 cov_threshold=args.QC_min_cov,
                 min_contig_length=args.QC_min_contig)
         print("running prokka")
-        runners.run_annotation(args, contigs=args.contigs, prokka_dir=prokka_dir,
-                       images_dict=images_dict, skip_rename=args.skip_rename,
-                       new_name="renamed_preprokka_input.fasta",
-                       subset="wgs", log_dir=log_dir)
+        runners.run_annotation(
+            args, contigs=args.contigs, prokka_dir=prokka_dir,
+            images_dict=images_dict, skip_rename=args.skip_rename,
+            new_name="renamed_preprokka_input.fasta",
+            subset="wgs", log_dir=log_dir)
     else:
         # read in old config file, if it exists. for now we just get the old
         # path to the contigs, so you dont have to remember how exacly you ran
@@ -519,7 +546,7 @@ def main(args=None):
             except Exception as e:
                 print(e)
                 raise ValueError("When rerunning old analyses without a " +
-                                 "'happie_args.yaml' file in outdir, all "+
+                                 "'happie_args.yaml' file in outdir, all " +
                                  " the required args must be provided")
         prokka_dir = os.path.abspath(os.path.expanduser(prokka_dir))
         print(prokka_dir)
@@ -535,24 +562,36 @@ def main(args=None):
         prokka_gbk = glob.glob(os.path.join(prokka_dir, "*.gbk"))[0]
         prokka_gff = glob.glob(os.path.join(prokka_dir, "*.gff"))[0]
     except IndexError:
-        raise FileNotFoundError("File not found - something went wrong in step 1 with prokka")
+        raise FileNotFoundError(
+            "File not found - something went wrong in step 1 with prokka"
+        )
 
     prokka = Namespace(
         fna=prokka_fna,
         gbk=prokka_gbk,
         gff=prokka_gff,)
-    ##########################  finding mobile element ################################3
+    ##########################  finding mobile element ########################
     if args.restart_stage < 3 and any([x=="prophages" for x in args.elements]):
-        runners.run_prophet(args, prokka, prophet_dir, images_dict, subset="mobile",log_dir=log_dir)
+        runners.run_prophet(
+            args, prokka, prophet_dir, images_dict,
+            subset="mobile",log_dir=log_dir)
     if args.restart_stage < 4 and any([x=="plasmids" for x in args.elements]):
         if "mobsuite" in args.plasmid_tools:
-            runners.run_mobsuite(args, prokka, mobsuite_dir, images_dict, subset="mobile", log_dir=log_dir)
+            runners.run_mobsuite(
+                args, prokka, mobsuite_dir, images_dict,
+                subset="mobile", log_dir=log_dir)
         if "mlplasmids" in args.plasmid_tools:
-            runners.run_mlplasmids(args, prokka, mlplasmids_results, images_dict, subset="mobile", log_dir=log_dir)
+            runners.run_mlplasmids(
+                args, prokka, mlplasmids_results, images_dict,
+                subset="mobile", log_dir=log_dir)
         if "plasflow" in args.plasmid_tools:
-            runners.run_plasflow(args, prokka, plasflow_results, images_dict, subset="mobile", log_dir=log_dir)
+            runners.run_plasflow(
+                args, prokka, plasflow_results, images_dict,
+                subset="mobile", log_dir=log_dir)
     if args.restart_stage < 5 and any([x=="islands" for x in args.elements]):
-        runners.run_dimob(args, prokka, island_results, images_dict, subset="mobile", log_dir=log_dir)
+        runners.run_dimob(
+            args, prokka, island_results, images_dict,
+            subset="mobile", log_dir=log_dir)
     if args.restart_stage < 6 and any([x=="is" for x in args.elements]):
         pass
         #run_dimob(args, prokka, island_results, images_dict)
@@ -561,44 +600,47 @@ def main(args=None):
     ###########################################################################
     # program type sequence start end
         all_results = []
-        results_list = []
         if any([x=="prophages" for x in args.elements]):
-            if os.path.exists(prophet_results) and os.path.getsize(prophet_results) > 0:
-                prophet_parsed_result = parsers.parse_prophet_results(prophet_results)
-                all_results.extend(prophet_parsed_result)
-                results_list.append(prophet_parsed_result)
+            if os.path.exists(prophet_results) and \
+               os.path.getsize(prophet_results) > 0:
+                all_results.extend(
+                    parsers.parse_prophet_results(
+                        prophet_results))
         print(all_results)
         if any([x=="plasmids" for x in args.elements]):
             if "mobsuite" in args.plasmid_tools:
-                if os.path.exists(mobsuite_results) and os.path.getsize(mobsuite_results) > 0:
-                    mobsuite_parsed_result = \
-                        parsers.parse_mobsuite_results(mobsuite_results)
-                    all_results.extend(mobsuite_parsed_result)
-                    results_list.append(mobsuite_parsed_result)
+                if os.path.exists(mobsuite_results) and \
+                   os.path.getsize(mobsuite_results) > 0:
+                    all_results.extend(
+                        parsers.parse_mobsuite_results(
+                            mobsuite_results))
             if "plasflow" in args.plasmid_tools:
-                if os.path.exists(plasflow_results) and os.path.getsize(plasflow_results) > 0:
-                    plasflow_parsed_result = \
-                        parsers.parse_plasflow_results(plasflow_results)
-                    all_results.extend(plasflow_parsed_result)
-                    results_list.append(plasflow_parsed_result)
+                if os.path.exists(plasflow_results) and \
+                   os.path.getsize(plasflow_results) > 0:
+
+                    all_results.extend(
+                        parsers.parse_plasflow_results(
+                            plasflow_results))
             if "mlplasmids" in args.plasmid_tools:
-                if os.path.exists(mlplasmids_results) and os.path.getsize(mlplasmids_results) > 0:
-                    mlplasmids_parsed_result = parsers.parse_mlplasmids_results(mlplasmids_results)
-                    all_results.extend(mlplasmids_parsed_result)
-                    results_list.append(mlplasmids_parsed_result)
+                if os.path.exists(mlplasmids_results) and \
+                   os.path.getsize(mlplasmids_results) > 0:
+                    all_results.extend(
+                        parsers.parse_mlplasmids_results(
+                            mlplasmids_results))
         print(all_results)
         if any([x=="islands" for x in args.elements]):
-            if os.path.exists(island_results) and os.path.getsize(island_results) > 0:
-                dimob_parsed_result = parsers.parse_dimob_results(island_results)
-                all_results.extend(dimob_parsed_result)
-                results_list.append(dimob_parsed_result)
+            if os.path.exists(island_results) and
+            os.path.getsize(island_results) > 0:
+                all_results.extend(
+                    parsers.parse_dimob_results(island_results))
         # print(all_results)
         non_overlapping_results = condensce_regions(all_results)
         mobile_genome_path_prefix = os.path.join(args.output, "mobile_genome")
         output_regions = os.path.join(args.output, "mobile_genome_coords")
         with open(output_regions, "w") as outf:
             for line in all_results:
-                outf.write(args.contigs + "\t" + "\t".join([str(x) for x in line]) + "\n")
+                outf.write(args.contigs + "\t" + "\t".join(
+                    [str(x) for x in line]) + "\n")
         output_key_path = os.path.join(args.output, "names_key")
         write_out_names_key(inA=args.contigs, inB=prokka_fna,
                             outfile=output_key_path)
@@ -612,14 +654,16 @@ def main(args=None):
             print("WARNING: none of the genome was detected to be mobile")
             return 0
 
-        tab_data = runners.make_cgview_tab_file(args, cgview_entries=cgview_entries,
+        tab_data = runners.make_cgview_tab_file(
+            args, cgview_entries=cgview_entries,
                                     seqlen=seq_length)
         cgview_data = os.path.join(args.output, "cgview.tab")
         with open(cgview_data, "w") as outf:
             for line in tab_data:
                 outf.write(line + "\n")
         #########################################
-        # run abricate on both the mobile genome, and the entire sequence, for enrichment comparison
+        # run abricate on both the mobile genome,
+        # and the entire sequence, for enrichment comparison
         abricate_data = os.path.join(args.output, "mobile_abricate.tab")
         runners.run_abricate(
             args, abricate_dir,
@@ -639,6 +683,7 @@ def main(args=None):
                 prokka_dir=mobile_prokka_dir, images_dict=images_dict,
                 skip_rename=True,
                 new_name="tmp_mobile.fasta", subset="mobile", log_dir=log_dir)
+
     # Run Annofilt on mobile genome and annotated genome
     if not args.skip_annofilt:
         try:
