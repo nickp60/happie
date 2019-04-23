@@ -643,7 +643,8 @@ def main(args=None):
                 all_results.extend(
                     parsers.parse_dimob_results(island_results))
         non_overlapping_results = condensce_regions(all_results)
-        mobile_genome_path_prefix = os.path.join(results_dir, "mobile_genome")
+        mobile_genome_path_prefix = os.path.join(
+            results_dir, "mobile_" + args.name)
         output_regions = os.path.join(results_dir, "mobile_genome_coords")
         with open(output_regions, "w") as outf:
             for line in all_results:
