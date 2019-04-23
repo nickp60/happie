@@ -371,7 +371,7 @@ def run_annotation(args, contigs, prokka_dir, images_dict, skip_rename=True,
     if os.path.exists(prokka_dir):
         shutil.rmtree(prokka_dir)
     if not skip_rename:
-        dest_fasta = os.path.join(args.output, new_name)
+        dest_fasta = os.path.join(args.output, 'intermediate_files', new_name)
         with open(contigs, "r") as inf, open(dest_fasta, "w") as outf:
             for i, rec in enumerate(SeqIO.parse(inf, "fasta")):
                 header = "lcl_" + str(i+1)
@@ -386,7 +386,6 @@ def run_annotation(args, contigs, prokka_dir, images_dict, skip_rename=True,
                 )
         args.contigs = dest_fasta
         contigs = dest_fasta
-    print("running prokka")
     prokka_cmd = make_containerized_cmd(
         args=args,
         image=images_dict['prokka']["image"],
@@ -700,7 +699,7 @@ def recheck_required_args(args):
         raise ValueError("no --contigs provided! see 'happie -h'")
     if not args.skip_annofilt:
         if args.annofilt_reference is None:
-            raise ValueError("If using annofilt, you must provide a species specific pangenome from whole genomes for comparison. See the annofilt documentaion for more details. <https://github.com/nickp60/annofilt/>")
+            raise ValueError("If using annofilt, you must provide a species-specific pangenome from whole genomes for comparison using the --annofilt_reference arg. See the annofilt documentaion for more details. <https://github.com/nickp60/annofilt/>.  Annofilt can be skipped using the --skip_annofilt arg.")
 
 
 def coords_to_merged_gff(coords):
@@ -808,24 +807,26 @@ def main(args=None):
     config_data = sm.get_containers_manifest()
     images_dict = sm.parse_docker_images(config_data)
     log_dir = os.path.join(args.output, "sublogs")
-    QC_dir = os.path.join(args.output, "QC")
-    prokka_dir = os.path.join(args.output, "wgs_prokka")
-    mobile_prokka_dir = os.path.join(args.output, "mobile_prokka")
-    prophet_dir = os.path.join(args.output, "ProphET", "")
+    interm_dir = os.path.join(args.output, 'intermediate_files')
+    results_dir = os.path.join(args.output, 'results')
+    QC_dir = os.path.join(interm_dir, "QC")
+    prokka_dir = os.path.join(interm_dir, "wgs_prokka")
+    mobile_prokka_dir = os.path.join(interm_dir, "mobile_prokka")
+    prophet_dir = os.path.join(interm_dir, "ProphET", "")
     prophet_results = os.path.join(prophet_dir, "phages_coords")
-    island_dir = os.path.join(args.output, "dimob", "")
-    island_results = os.path.join(args.output, "dimob", "dimob_results")
-    mlplasmids_dir = os.path.join(args.output, "mlplasmids", "")
-    mlplasmids_results = os.path.join(args.output, "mlplasmids", "results.txt")
-    abricate_dir = os.path.join(args.output, "mobile_abricate", "")
-    wgs_abricate_dir = os.path.join(args.output, "wgs_abricate", "")
-    annofilt_dir = os.path.join(args.output, "mobile_annofilt", "")
-    wgs_annofilt_dir = os.path.join(args.output, "wgs_annofilt", "")
-    cgview_dir = os.path.join(args.output, "cgview", "")
+    island_dir = os.path.join(interm_dir, "dimob", "")
+    island_results = os.path.join(interm_dir, "dimob", "dimob_results")
+    mlplasmids_dir = os.path.join(interm_dir, "mlplasmids", "")
+    mlplasmids_results = os.path.join(interm_dir, "mlplasmids", "results.txt")
+    abricate_dir = os.path.join(interm_dir, "mobile_abricate", "")
+    wgs_abricate_dir = os.path.join(interm_dir, "wgs_abricate", "")
+    mobile_annofilt_dir = os.path.join(interm_dir, "mobile_annofilt", "")
+    wgs_annofilt_dir = os.path.join(interm_dir, "wgs_annofilt", "")
+    cgview_dir = os.path.join(interm_dir, "cgview", "")
     # make sub directories. We don't care if they already exist;
     #  cause we clobber them later if they will cause problems for reexecution
     # except dont make prokka dirs
-    for path in [prophet_dir, mlplasmids_dir, island_dir,
+    for path in [results_dir,prophet_dir, mlplasmids_dir, island_dir,
                  abricate_dir, wgs_abricate_dir, log_dir, QC_dir]:
         os.makedirs(path, exist_ok=True)
 
@@ -842,7 +843,7 @@ def main(args=None):
         if not isfasta:
             print("converting input to fasta")
             fasta_version = os.path.join(
-                args.output,
+                interm_dir,
                 os.path.basename(os.path.splitext(args.contigs)[0] + ".fna")
             )
             with open(args.contigs, "r") as i2, open(fasta_version, "w") as o2:
@@ -881,7 +882,7 @@ def main(args=None):
                 print(e)
                 raise ValueError("When rerunning old analyses without a " +
                                  "'happie_args.yaml' file in outdir, all "+
-                                 " the required args must be provided")
+                                 "the required args must be provided")
         prokka_dir = os.path.abspath(os.path.expanduser(prokka_dir))
         print(prokka_dir)
         examples_prokka_for_name_parsing = \
@@ -911,7 +912,6 @@ def main(args=None):
         run_dimob(args, prokka, island_results, images_dict, subset="mobile", log_dir=log_dir)
     if args.restart_stage < 6 and any([x=="is" for x in args.elements]):
         pass
-        #run_dimob(args, prokka, island_results, images_dict)
 
     if args.restart_stage < 7:
     ###########################################################################
@@ -935,14 +935,15 @@ def main(args=None):
                 dimob_parsed_result = parse_dimob_results(island_results)
                 all_results.extend(dimob_parsed_result)
                 results_list.append(dimob_parsed_result)
-        # print(all_results)
+
+        # write out results 
         non_overlapping_results = condensce_regions(all_results)
-        mobile_genome_path_prefix = os.path.join(args.output, "mobile_genome")
-        output_regions = os.path.join(args.output, "mobile_genome_coords")
+        mobile_genome_path_prefix = os.path.join(results_dir, "mobile_genome")
+        output_regions = os.path.join(results_dir, "mobile_genome_coords")
         with open(output_regions, "w") as outf:
             for line in all_results:
                 outf.write(args.contigs + "\t" + "\t".join([str(x) for x in line]) + "\n")
-        output_key_path = os.path.join(args.output, "names_key")
+        output_key_path = os.path.join(results_dir, "contig_names_key")
         write_out_names_key(inA=args.contigs, inB=prokka_fna,
                             outfile=output_key_path)
         seq_length, cgview_entries = write_annotated_mobile_genome(
@@ -957,20 +958,19 @@ def main(args=None):
 
         tab_data = make_cgview_tab_file(args, cgview_entries=cgview_entries,
                                     seqlen=seq_length)
-        cgview_data = os.path.join(args.output, "cgview.tab")
+        cgview_data = os.path.join(interm_dir, "cgview.tab")
         with open(cgview_data, "w") as outf:
             for line in tab_data:
                 outf.write(line + "\n")
         #########################################
         # run abricate on both the mobile genome, and the entire sequence, for enrichment comparison
-        abricate_data = os.path.join(args.output, "mobile_abricate.tab")
+        abricate_data = os.path.join(results_dir, "mobile_abricate.tab")
+        wgs_abricate_data = os.path.join(results_dir, "wgs_abricate.tab")
         run_abricate(
             args, abricate_dir,
             mobile_fasta=mobile_genome_path_prefix + ".fasta",
             images_dict=images_dict,
             all_results=abricate_data,subset="mobile", log_dir=log_dir)
-        wgs_abricate_data = os.path.join(
-            args.output, "wgs_abricate.tab")
         run_abricate(
             args, wgs_abricate_dir,
             mobile_fasta=args.contigs,
@@ -982,16 +982,35 @@ def main(args=None):
                 prokka_dir=mobile_prokka_dir, images_dict=images_dict,
                 skip_rename=False,
                 new_name="tmp_mobile.fasta", subset="mobile", log_dir=log_dir)
+            try:
+                shutil.copyfile(glob.glob(os.path.join(mobile_prokka_dir, "*.fna"))[0],
+                                os.path.join(results_dir, args.name + '.fasta'))
+                shutil.copyfile(glob.glob(os.path.join(mobile_prokka_dir, "*.gbk"))[0],
+                                os.path.join(results_dir, args.name + '.gbk'))
+            except IndexError:
+                raise FileNotFoundError(
+                    "File not found - something went " +
+                    "wrong annotating the mobile genome.")
+                                
+        else:
+            shutil.copyfile(mobile_genome_path_prefix + ".fasta",
+                            os.path.join(results_dir, args.name + '.fasta'))
+            
     # Run Annofilt on mobile genome and annotated genome
-    if not args.skip_annofilt:
+    if args.skip_annofilt:
         try:
-            mobile_prokka_fna = glob.glob(
-                os.path.join(mobile_prokka_dir, "*.fna"))[0]
+            shutil.copyfile(prokka_gbk,
+                            os.path.join(results_dir, args.name + '.gbk'))
+            shutil.copyfile(prokka_gff,
+                            os.path.join(results_dir, args.name + '.gff'))
         except IndexError:
             raise FileNotFoundError(
                 "File not found - something went " +
-                "wrong annotating the mobile genome.")
-        # copy pan_genome temporarrity:
+                "wrong filtering annotations.")
+    else:
+        mobile_prokka_fna = glob.glob(
+            os.path.join(mobile_prokka_dir, "*.fna"))[0]
+        # copy pan_genome temporarily:
         tmp_pangenome = os.path.join(args.output, "tmp_pangenome.fasta")
         shutil.copyfile(args.annofilt_reference, tmp_pangenome)
         old_annofilt_reference = args.annofilt_reference
@@ -999,7 +1018,7 @@ def main(args=None):
         print("Running annofilt to remove truncated CDSs")
         run_annofilt(
             args,
-            annofilt_dir=annofilt_dir,
+            annofilt_dir=mobile_annofilt_dir,
             prokka_dir=mobile_prokka_dir,
             images_dict=images_dict,
             subset="mobile",
@@ -1012,8 +1031,22 @@ def main(args=None):
             subset="wgs",
             log_dir=log_dir)
         os.remove(tmp_pangenome)
-        # run_cgview(args, cgview_tab=cgview_data, cgview_dir=cgview_dir, images_dict=images_dict)
+        try:
+            shutil.copyfile(glob.glob(os.path.join(wgs_annofilt_dir, "*.gbk"))[0],
+                            os.path.join(results_dir, args.name + '.gbk'))
+            shutil.copyfile(glob.glob(os.path.join(mobile_annofilt_dir, "*.gbk"))[0],
+                            os.path.join(results_dir, args.name + '.gbk'))
+            shutil.copyfile(glob.glob(os.path.join(wgs_annofilt_dir, "*.gff"))[0],
+                            os.path.join(results_dir, args.name + '.gff'))
+            shutil.copyfile(glob.glob(os.path.join(mobile_annofilt_dir, "*.gff"))[0],
+                            os.path.join(results_dir, args.name + '.gff'))
+        except IndexError:
+            raise FileNotFoundError(
+                "File not found - something went " +
+                "wrong filtering annotations.")
 
+        # run_cgview(args, cgview_tab=cgview_data, cgview_dir=cgview_dir, images_dict=images_dict)
+    
 
 if __name__ == "__main__":
     args = get_args()
