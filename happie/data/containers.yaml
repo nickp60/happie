@@ -10,7 +10,7 @@ programs:
     # results: "/prokka/bin/prokka"
     results: null
   annofilt:
-    version: 0.0.4f
+    version: 0.0.8
     maintainer: nickp60
     name: annofilt
     exe: null
