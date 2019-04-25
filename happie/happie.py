@@ -282,7 +282,7 @@ def write_annotated_mobile_genome(contigs,seed, output_path, all_results,
     return(total_length, cgview_entries)
 
 
-def write_out_names_key(inA, inB, outfile):
+def write_out_names_key(inA, inB, outfile, args):
     inA_names = []
     inB_names = []
     with open(inA, "r") as inAf:
@@ -292,8 +292,14 @@ def write_out_names_key(inA, inB, outfile):
         for rec in SeqIO.parse(inBf, "fasta"):
             inB_names.append([len(rec.seq), rec.id])
     # I hope this never happens
-    assert len(inA_names) == len(inB_names), \
-        "length of fasta before and after prokka is different!"
+    # edit: but it can happen when restarting analyses,
+    # cause we dont update the args when we re-assign
+    # args.contigs
+    if  len(inA_names) != len(inB_names):
+        if args.restart_stage == 1:
+            raise AssertionError(
+                "WARNING!" "length of fasta before and " +
+                "after prokka is different!")
     with open(outfile, "w") as outf:
         outf.write("original_name\toriginal_length\tnew_name\tnew_length\n")
         for a, b in zip(sorted(inA_names, reverse=True),
@@ -554,7 +560,7 @@ def main(args=None):
             glob.glob(os.path.join(prokka_dir, "*.fna"))
         print(examples_prokka_for_name_parsing)
         args.name = os.path.splitext(
-            os.path.basename(examples_prokka_for_name_parsing[0]))[0]
+            os.path.basename(examples_prokka_for_name_parsing[0]))[0].replace("wgs_", "")
 
     # set some names of shtuff
     try:
@@ -652,7 +658,7 @@ def main(args=None):
                     [str(x) for x in line]) + "\n")
         output_key_path = os.path.join(args.output, "contig_names_key")
         write_out_names_key(inA=args.contigs, inB=prokka_fna,
-                            outfile=output_key_path)
+                            outfile=output_key_path, args=args)
         seq_length, cgview_entries = write_annotated_mobile_genome(
             seed=os.path.basename(args.contigs),
             contigs=prokka_fna,
