@@ -1,26 +1,31 @@
+#+title: happie
+#+startup: showall
 [[icon/logo.png]]
 * Happie
-Happie is a wrapper for several independent programs used to identify different mobile elements.  It is designed to thrive on HPC environments taking advantage of either Docker or Singularity to containerize the different programs.
+Happie is a wrapper for several independent programs used to identify different mobile elements. It is designed to thrive on HPC environments taking advantage of either Docker or Singularity to containerize the different programs.
+
+Happie allows you to identify and extract all the "mobile" regions of a genome assembly -- those identified as being either prophage, plasmid, or genomic island sequence. This can be used to assess the charactaristics of the mobilome as opposed to the whole genome.
+
+In the next few months, we will be uploaded a few case studies showing happie's utility.
 
 
+# ** Context independent Regions
+# These regions are interesting in and of themselves for what genes they carry, etc
+# *** Phages
+# **** ProphET
 
+# *** Plasmids
+# **** mlplasmids
+# **** mobsuite
+# **** PlasFlow
+# *** Genomic Islands
+# **** CAFE
+# # ** Context-dependedt Regions
+# # These regions are short, and are interestesitng solely because of their context
+# # *** Insertion Sequnes
+# # **** OASIS
 
-** Context independent Regions
-These regions are interesting in and of themselves for what genes they carry, etc
-*** Phages
-**** ProphET
-*** Plasmids
-**** mlplasmids
-**** mobsuite
-**** PlasFlow
-*** Genomic Islands
-**** CAFE
-# ** Context-dependedt Regions
-# These regions are short, and are interestesitng solely because of their context
-# *** Insertion Sequnes
-# **** OASIS
-
-**** Islandpath DIMOB
+# **** Islandpath DIMOB
 
 * Install
 
@@ -57,25 +62,42 @@ happie --contigs ./test_data/ecoli104.fna  --output tmpresults --virtualization 
 
 You should get several output files:
 #+begin_src
-tmp
-├── ProphET
-├── PropheET_log.txt
-├── abricate
-├── abricate_resfinder_log.txt
-├── abricate_vfdb_log.txt
-├── cgview.tab
-├── dimob
-├── log.txt
-├── mlplasmids
-├── mlplasmids_log.txt
-├── mobile_prokka
-├── mobile_genome.fasta
-├── mobile_genome.gbk
-├── mobile_genome_coords
-├── mobsuite
-├── names_key
-├── new_fasta.fasta
-└── prokka
+tmp__small/
+├── contig_names_key
+├── happie_args.yaml
+├── intermediate_files
+│   ├── ProphET
+│   ├── QC
+│   ├── cgview.tab
+│   ├── dimob
+│   ├── mlplasmids
+│   ├── mobile_abricate
+│   ├── mobile_annofilt
+│   ├── mobile_prokka
+│   ├── wgs_abricate
+│   ├── wgs_annofilt
+│   └── wgs_prokka
+├── results
+│   ├── mobile_abricate.tab
+│   ├── mobile_genome_coords
+│   ├── mobile_test.fasta
+│   ├── mobile_test.gbk
+│   ├── mobile_test.gff
+│   ├── wgs_abricate.tab
+│   ├── wgs_test.gbk
+│   └── wgs_test.gff
+└── sublogs
+    ├── QC.log
+    ├── mobile_PropheET.log
+    ├── mobile_abricate_resfinder_log.txt
+    ├── mobile_abricate_vfdb_log.txt
+    ├── mobile_annofilt.log
+    ├── mobile_mlplasmids.log
+    ├── mobile_prokka.log
+    ├── wgs_abricate_resfinder_log.txt
+    ├── wgs_abricate_vfdb_log.txt
+    ├── wgs_annofilt.log
+    └── wgs_prokka.log
 #+end_src
 
 
