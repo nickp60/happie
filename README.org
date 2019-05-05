@@ -1,5 +1,6 @@
 #+title: happie
 #+startup: showall
+https://zenodo.org/badge/latestdoi/146430799
 [[icon/logo.png]]
 * Happie
 Happie is a wrapper for several independent programs used to identify different mobile elements. It is designed to thrive on HPC environments taking advantage of either Docker or Singularity to containerize the different programs.
@@ -8,6 +9,7 @@ Happie allows you to identify and extract all the "mobile" regions of a genome a
 
 In the next few months, we will be uploaded a few case studies showing happie's utility.
 
+[[quickstart.org][click here for a quickstart guide!]]
 
 # ** Context independent Regions
 # These regions are interesting in and of themselves for what genes they carry, etc

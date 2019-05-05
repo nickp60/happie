@@ -30,7 +30,8 @@ def parse_docker_images(config):
             v['name'], v['version'])
         images_dict[k] = {"image": image_name,
                           "sing": sing_file,
-                          "exe": v["exe"]}
+                          "exe": v["exe"],
+                          "url": v["url"]}
     return images_dict
 
 def get_happie_dir():
