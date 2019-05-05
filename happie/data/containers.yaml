@@ -9,48 +9,57 @@ programs:
     exe: null
     # results: "/prokka/bin/prokka"
     results: null
+    url: https://www.ncbi.nlm.nih.gov/pubmed/24642063
   annofilt:
     version: 0.0.8a
     maintainer: nickp60
     name: annofilt
     exe: null
     results: null
+    url: null
   prophet:
     version: 1.14
     maintainer: nickp60
     name: prophet
     exe: null
     results: phages_coords
+    url: https://www.biorxiv.org/content/10.1101/176750v2
   mlplasmids:
     version: latest
     maintainer: nickp60
     name: mlplasmids
     exe: "Rscript /bin/run_mlplasmids.R"
+    url: https://mgen.microbiologyresearch.org/content/journal/mgen/10.1099/mgen.0.000224
   dimob:
     version: latest
     maintainer: nickp60
     name: islandpath
     exe: null
+    url: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC1285063/
   abricate:
     version: latest
     maintainer: nickp60
     name: abricate
     exe: "./bin/abricate"
+    url: https://github.com/tseemann/abricate
   cgview:
     version: latest
     maintainer: nickp60
     name: cgview
     exe: "java -jar /bin/cgview"
+    url: https://academic.oup.com/bioinformatics/article/21/4/537/203470
   mobsuite:
     version: 1.0
     maintainer: nickp60
     name: mobsuite
     exe: null
+    url: https://github.com/phac-nml/mob-suite
   plasflow:
     version: 1.0
     maintainer: nickp60
     name: plasflow
     exe: null
+    url: https://academic.oup.com/nar/article/46/6/e35/4807335
   # antismash:
   #   version: 4.2.0
   #   maintainer: antismash

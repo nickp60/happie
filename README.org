@@ -131,3 +131,7 @@ In Progress
 
 *** Note
 This module was renamed from "mobilephone", it was just too hard to google.
+
+
+*** Citing
+After each run, happie creates a "citing.txt" file, with links to all the software happie uses.  Some of those use additional references, so make sure give credit to everyone involved!

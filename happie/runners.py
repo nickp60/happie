@@ -81,6 +81,8 @@ def run_annotation(args, contigs, prokka_dir, images_dict, skip_rename=True,
                    stdout=subprocess.PIPE,
                    stderr=subprocess.PIPE,
                    check=True)
+    with open(os.path.join(args.output, "citing.txt"), "a") as outf:
+        outf.write(images_dict['prokka']["url"])
 
 
 def run_annofilt(args, annofilt_dir, prokka_dir, images_dict,
@@ -117,6 +119,8 @@ def run_annofilt(args, annofilt_dir, prokka_dir, images_dict,
                    stdout=subprocess.PIPE,
                    stderr=subprocess.PIPE,
                    check=True)
+    with open(os.path.join(args.output, "citing.txt"), "a") as outf:
+        outf.write(images_dict['annofilt']["url"])
 
 
 def run_prophet(args, prokka, prophet_dir, images_dict,
@@ -150,6 +154,8 @@ def run_prophet(args, prokka, prophet_dir, images_dict,
                    stdout=subprocess.PIPE,
                    stderr=subprocess.PIPE,
                    check=True)
+    with open(os.path.join(args.output, "citing.txt"), "a") as outf:
+        outf.write(images_dict['prophet']["url"])
 
 
 def run_mlplasmids(args, prokka, mlplasmids_results, images_dict,
@@ -181,6 +187,8 @@ def run_mlplasmids(args, prokka, mlplasmids_results, images_dict,
                    stdout=subprocess.PIPE,
                    stderr=subprocess.PIPE,
                    check=True)
+    with open(os.path.join(args.output, "citing.txt"), "a") as outf:
+        outf.write(images_dict['mlplasmids']["url"])
 
 
 def run_plasflow(args, prokka, plasflow_results, images_dict,
@@ -210,6 +218,8 @@ def run_plasflow(args, prokka, plasflow_results, images_dict,
                    stdout=subprocess.PIPE,
                    stderr=subprocess.PIPE,
                    check=True)
+    with open(os.path.join(args.output, "citing.txt"), "a") as outf:
+        outf.write(images_dict['plasflow']["url"])
 
 
 def run_mobsuite(args, prokka,  mobsuite_results, images_dict,
@@ -240,6 +250,8 @@ def run_mobsuite(args, prokka,  mobsuite_results, images_dict,
                    stdout=subprocess.PIPE,
                    stderr=subprocess.PIPE,
                    check=True)
+    with open(os.path.join(args.output, "citing.txt"), "a") as outf:
+        outf.write(images_dict['mobsuite']["url"])
 
 
 def run_dimob(args, prokka, island_results, images_dict,
@@ -297,6 +309,8 @@ def run_dimob(args, prokka, island_results, images_dict,
         with open(v['result'], "r") as inf, open(island_results, "a") as outf:
             for line in inf:
                 outf.write(k + "\t" + line)
+    with open(os.path.join(args.output, "citing.txt"), "a") as outf:
+        outf.write(images_dict['dimob']["url"])
 
 
 def run_abricate(args, abricate_dir, mobile_fasta, images_dict,
@@ -342,6 +356,8 @@ def run_abricate(args, abricate_dir, mobile_fasta, images_dict,
         for f in outfiles:
             for line in open(f, "r"):
                 outf.write(line)
+    with open(os.path.join(args.output, "citing.txt"), "a") as outf:
+        outf.write(images_dict['abricate']["url"])
 
 
 def make_cgview_tab_file(args, seqlen, cgview_entries):
@@ -388,3 +404,5 @@ def run_cgview(args, cgview_tab, cgview_dir, images_dict,
                    stdout=subprocess.PIPE,
                    stderr=subprocess.PIPE,
                    check=True)
+    with open(os.path.join(args.output, "citing.txt"), "a") as outf:
+        outf.write(images_dict['cgview']["url"])

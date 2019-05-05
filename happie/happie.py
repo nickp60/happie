@@ -495,6 +495,7 @@ def main(args=None):
     #  cause we clobber them later if they will cause problems for reexecution
     # except dont make prokka dirs
     for path in [results_dir, prophet_dir, mlplasmids_dir, island_dir,
+                 plasflow_dir,
                  abricate_dir, wgs_abricate_dir, log_dir, QC_dir]:
         os.makedirs(path, exist_ok=True)
 
@@ -771,6 +772,8 @@ def main(args=None):
                 "wrong filtering annotations.")
         # runners.run_cgview(args, cgview_tab=cgview_data,
         #  cgview_dir=cgview_dir, images_dict=images_dict)
+    with open(os.path.join(args.output, "citing.txt"), "a") as outf:
+        outf.write("https://github.com/nickp60/happie")
 
 
 if __name__ == "__main__":
