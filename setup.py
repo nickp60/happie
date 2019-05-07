@@ -70,10 +70,9 @@ setup(
         'Programming Language :: Python :: 3.6',
     ],
     keywords='bioinformatics evolution genomics development',
-    packages=find_packages(),
-    package_data={
-       'happie': ["happie/data/containers.yaml"],
-    },
+    packages=["happie"],
+    # include anything mentioned in the MANIFEST.in
+    include_package_data=True,
     entry_points={
        'console_scripts': [
            'happie=happie.happie:main',

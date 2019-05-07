@@ -1,2 +1,3 @@
 include *.org
 include LICENS*
+include happie/data/containers.yaml
