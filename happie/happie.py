@@ -91,7 +91,8 @@ def get_args():  # pragma: no cover
                           action="store", nargs="*",
                           default=["resfinder", "vfdb"],
                           choices=["ncbi", "card", "resfinder",
-                                   "argannot",  "vfdb", "ecoli_vf"],
+                                   "argannot",  "vfdb", "ecoli_vf",
+                                   "antismash"],
                           help="which analyses to perform on the " +
                           "extracted mobile genome.")
     optional.add_argument("-s", "--restart_stage", dest='restart_stage',
@@ -604,6 +605,7 @@ def main(args=None):
             args, prokka, island_results, images_dict,
             subset="mobile", log_dir=log_dir)
     if args.restart_stage < 6 and any([x == "is" for x in args.elements]):
+        print("Warning:  IS detection not implemented")
         pass
 
     ###########################################################################
@@ -692,6 +694,12 @@ def main(args=None):
             mobile_fasta=args.contigs,
             images_dict=images_dict,
             all_results=wgs_abricate_data, subset="wgs", log_dir=log_dir)
+        #########################################
+        # run antismash on both the mobile genome, and the
+        # entire sequence, for enrichment comparison
+        #########################################
+        # run abricate on both the mobile genome, and the
+        # entire sequence, for enrichment comparison
         if not args.skip_reannotate:
             runners.run_annotation(
                 args, contigs=mobile_genome_path_prefix + ".fasta",

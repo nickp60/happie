@@ -1,3 +1,4 @@
+#+startup: showall
 * Quickstart Guide
 ** Installation
 To run happie, you will need to have Docker or Singularity installed, and python3.
@@ -19,7 +20,7 @@ If you had any issues with the python install, try installing into a [[https://b
 
 Happie is now installed, but we need to get the docker/singularity images for all the programs it uses.  This is a bit of a pain, but having pre-built versions ensures that happie can be run replroducibly on any system, and can scale with distributed computing.
 
-We have prebuilt all the images, and include a program, `happie\_install\_or\_update` to do the work of downloading them from dockerhub.
+We have pre built all the images, and include a program, `happie\_install\_or\_update` to do the work of downloading them from dockerhub.
 
 Run that command:
 #+BEGIN_SRC
@@ -46,6 +47,7 @@ curl -o Marseille.fasta.gz ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/180/39
 gunzip ./*
 cd ../
 #+END_SRC
+
 You should have a directory with three genomes in it now.  You are ready to run happie.
 
 *** setting important paremeters
@@ -59,10 +61,12 @@ Finally, lets have it run abricate with vfdb to detect virulence factors, and th
 
 
 We will run these commands in a bash loop, once for each genome:
+
 #+BEGIN_SRC
 for i in D30 MR1 Marseille;
 do
    happie --contigs ./staph/${i}.fasta --QC_min_assembly 2400000 --QC_max_assembly 3400000 --skip_annofilt --plasmid_tools plasflow --analyses vfdb card --cores 4 --name ${i} --output happie_${i}
 done
 #+END_SRC
+
 On my machine, this takes about 12 minutes per genome

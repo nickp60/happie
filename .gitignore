@@ -7,3 +7,6 @@ test_data/
 ./tests/output_mp_tests/
 validation/*_casjens/
 *.RData
+*.egg-info/
+/build/
+/dist/

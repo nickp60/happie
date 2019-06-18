@@ -3,6 +3,7 @@
 import sys
 import shutil
 import os
+import urllib.request
 import subprocess
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
@@ -406,3 +407,38 @@ def run_cgview(args, cgview_tab, cgview_dir, images_dict,
                    check=True)
     with open(os.path.join(args.output, "citing.txt"), "a") as outf:
         outf.write(images_dict['cgview']["url"])
+
+
+def run_antismash(args, antismash_dir, mobile_fasta, images_dict,
+                 all_results, subset="wgs", log_dir=None):
+    # remove old results
+    if os.path.exists(antismash_dir):
+        shutil.rmtree(antismash_dir)
+    # check if the rrunner script is in the PATH
+    this_cmd = make_containerized_cmd(
+        args=args,
+        image=images_dict['antismash']['image'],
+        sing=images_dict['antismash']["sing"],
+        dcommand=str(
+            "--cpus {cores}  /input/{infilefasta} --output-dir {outdir} " +
+            "--genefinding-tool glimmerhmm "  +
+            "2> {log}_log.txt").format(
+                cpus=args.cpus,
+                infilefasta=os.path.relpath(mobile_fasta),
+                outdir=antismash_dir,
+                log=os.path.join(log_dir, subset + "_antismash")),
+        scommand=str(
+            "--cpus {cores}  {infilefasta} --output-dir {outdir} " +
+            "--genefinding-tool glimmerhmm "  +
+            "2> {log}_log.txt").format(
+                cpus=args.cpus,
+                infilefasta=mobile_fasta,
+                outdir=antismash_dir,
+                log=os.path.join(log_dir, subset + "_antismash")),
+    )
+    print(this_cmd)
+    subprocess.run([this_cmd],
+                   shell=sys.platform != "win32",
+                   stdout=subprocess.PIPE,
+                   stderr=subprocess.PIPE,
+                   check=True)

@@ -10,7 +10,7 @@ def get_containers_manifest():
     resource_package = pkg_resources.Requirement.parse("happie")
     #print(resource_package)
     #print(pkg_resources.resource_listdir("happie", "data"))
-    datapath = pkg_resources.resource_filename(resource_package, 'happie/data/containers.yaml')
+    datapath = pkg_resources.resource_filename(resource_package, 'happie/data/images.yaml')
     print(datapath)
     with open(datapath, "r") as inf:
         return yaml.load(inf)

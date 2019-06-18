@@ -60,8 +60,9 @@ programs:
     name: plasflow
     exe: null
     url: https://academic.oup.com/nar/article/46/6/e35/4807335
-  # antismash:
-  #   version: 4.2.0
-  #   maintainer: antismash
-  #   name: standalone-lite
-  #   exe: null
+  antismash:
+    version: 5.0.2
+    maintainer: nickp60
+    name: antismash
+    exe: null
+    url: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3125804/
