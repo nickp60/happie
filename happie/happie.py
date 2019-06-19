@@ -89,7 +89,7 @@ def get_args():  # pragma: no cover
                           " pneumoniae ")
     optional.add_argument("--analyses", dest='analyses',
                           action="store", nargs="*",
-                          default=["resfinder", "vfdb"],
+                          default=["resfinder", "vfdb", "antismash"],
                           choices=["ncbi", "card", "resfinder",
                                    "argannot",  "vfdb", "ecoli_vf",
                                    "antismash"],
@@ -491,6 +491,8 @@ def main(args=None):
     wgs_abricate_dir = os.path.join(interm_dir, "wgs_abricate", "")
     mobile_annofilt_dir = os.path.join(interm_dir, "mobile_annofilt", "")
     wgs_annofilt_dir = os.path.join(interm_dir, "wgs_annofilt", "")
+    mobile_antismash_dir = os.path.join(interm_dir, "mobile_antismash", "")
+    wgs_antismash_dir = os.path.join(interm_dir, "wgs_antismash", "")
     # cgview_dir = os.path.join(interm_dir, "cgview", "")
     # make sub directories. We don't care if they already exist;
     #  cause we clobber them later if they will cause problems for reexecution
@@ -679,6 +681,7 @@ def main(args=None):
         with open(cgview_data, "w") as outf:
             for line in tab_data:
                 outf.write(line + "\n")
+
         #########################################
         # run abricate on both the mobile genome, and the
         # entire sequence, for enrichment comparison
@@ -694,9 +697,28 @@ def main(args=None):
             mobile_fasta=args.contigs,
             images_dict=images_dict,
             all_results=wgs_abricate_data, subset="wgs", log_dir=log_dir)
+
         #########################################
         # run antismash on both the mobile genome, and the
         # entire sequence, for enrichment comparison
+        if "antismash" in args.analyses:
+            runners.run_antismash(
+                args, gbk=mobile_genome_path_prefix + ".gbk",
+                antismash_dir=mobile_antismash_dir, images_dict=images_dict,
+                subset="mobile", log_dir=log_dir)
+            runners.run_antismash(
+                args, gbk=prokka_gbk,
+                antismash_dir=wgs_antismash_dir, images_dict=images_dict,
+                subset="wgs", log_dir=log_dir)
+            wgs_results = parsers.parse_antismash_results(
+                wgs_antismash_dir, region="wgs")
+            mobile_results = parsers.parse_antismash_results(
+                mobile_antismash_dir, region="mobile")
+            with open(os.path.join(results_dir, "antismash.txt"), "w") as outf:
+                for lst in [wgs_results, mobile_results]:
+                    for l in lst:
+                        outf.write("\t".join([str(x) for x in l]) + "\n")
+
         #########################################
         # run abricate on both the mobile genome, and the
         # entire sequence, for enrichment comparison
@@ -781,7 +803,7 @@ def main(args=None):
         # runners.run_cgview(args, cgview_tab=cgview_data,
         #  cgview_dir=cgview_dir, images_dict=images_dict)
     with open(os.path.join(args.output, "citing.txt"), "a") as outf:
-        outf.write("https://github.com/nickp60/happie")
+        outf.write("https://github.com/nickp60/happie" + "\n")
 
 
 if __name__ == "__main__":

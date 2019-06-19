@@ -9,7 +9,7 @@ MAINTAINER Nick Waters <nickp60@gmail.com>
 ENV ANTISMASH_VERSION="5.0.0"
 
 ENV ANTISMASH_URL="https://dl.secondarymetabolites.org/releases/"
-ENV ANTISMASH_VERSION="5.0.0rc1"
+ENV ANTISMASH_VERSION="5.0.0"
 
 ENV LANG C.UTF-8
 
@@ -35,5 +35,5 @@ RUN mkdir -p /databases && download-antismash-databases --data /databases
 
 # RUN find / -name  run_antismash.py
 ADD small.fasta ./
-RUN /antismash-5.0.0rc1/run_antismash.py small.fasta --genefinding-tool prodigal -v --output-dir tmpoutput && rm -r tmpoutput
-ENTRYPOINT [ "/antismash-5.0.0rc1/run_antismash.py" ]
+RUN /antismash-5.0.0/run_antismash.py small.fasta --genefinding-tool prodigal -v --output-dir tmpoutput && rm -r tmpoutput
+ENTRYPOINT [ "/antismash-5.0.0/run_antismash.py" ]

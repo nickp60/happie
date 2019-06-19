@@ -53,7 +53,6 @@ def run_annotation(args, contigs, prokka_dir, images_dict, skip_rename=True,
                 )
         args.contigs = dest_fasta
         contigs = dest_fasta
-    print("running prokka")
     prokka_cmd = make_containerized_cmd(
         args=args,
         image=images_dict['prokka']["image"],
@@ -83,7 +82,7 @@ def run_annotation(args, contigs, prokka_dir, images_dict, skip_rename=True,
                    stderr=subprocess.PIPE,
                    check=True)
     with open(os.path.join(args.output, "citing.txt"), "a") as outf:
-        outf.write(images_dict['prokka']["url"])
+        outf.write(images_dict['prokka']["url"] + "\n")
 
 
 def run_annofilt(args, annofilt_dir, prokka_dir, images_dict,
@@ -121,7 +120,7 @@ def run_annofilt(args, annofilt_dir, prokka_dir, images_dict,
                    stderr=subprocess.PIPE,
                    check=True)
     with open(os.path.join(args.output, "citing.txt"), "a") as outf:
-        outf.write(images_dict['annofilt']["url"])
+        outf.write(images_dict['annofilt']["url"] + "\n")
 
 
 def run_prophet(args, prokka, prophet_dir, images_dict,
@@ -156,7 +155,7 @@ def run_prophet(args, prokka, prophet_dir, images_dict,
                    stderr=subprocess.PIPE,
                    check=True)
     with open(os.path.join(args.output, "citing.txt"), "a") as outf:
-        outf.write(images_dict['prophet']["url"])
+        outf.write(images_dict['prophet']["url"] + "\n")
 
 
 def run_mlplasmids(args, prokka, mlplasmids_results, images_dict,
@@ -189,7 +188,7 @@ def run_mlplasmids(args, prokka, mlplasmids_results, images_dict,
                    stderr=subprocess.PIPE,
                    check=True)
     with open(os.path.join(args.output, "citing.txt"), "a") as outf:
-        outf.write(images_dict['mlplasmids']["url"])
+        outf.write(images_dict['mlplasmids']["url"] + "\n")
 
 
 def run_plasflow(args, prokka, plasflow_results, images_dict,
@@ -220,7 +219,7 @@ def run_plasflow(args, prokka, plasflow_results, images_dict,
                    stderr=subprocess.PIPE,
                    check=True)
     with open(os.path.join(args.output, "citing.txt"), "a") as outf:
-        outf.write(images_dict['plasflow']["url"])
+        outf.write(images_dict['plasflow']["url"] + "\n")
 
 
 def run_mobsuite(args, prokka,  mobsuite_results, images_dict,
@@ -252,7 +251,7 @@ def run_mobsuite(args, prokka,  mobsuite_results, images_dict,
                    stderr=subprocess.PIPE,
                    check=True)
     with open(os.path.join(args.output, "citing.txt"), "a") as outf:
-        outf.write(images_dict['mobsuite']["url"])
+        outf.write(images_dict['mobsuite']["url"] + "\n")
 
 
 def run_dimob(args, prokka, island_results, images_dict,
@@ -311,7 +310,7 @@ def run_dimob(args, prokka, island_results, images_dict,
             for line in inf:
                 outf.write(k + "\t" + line)
     with open(os.path.join(args.output, "citing.txt"), "a") as outf:
-        outf.write(images_dict['dimob']["url"])
+        outf.write(images_dict['dimob']["url"] + "\n")
 
 
 def run_abricate(args, abricate_dir, mobile_fasta, images_dict,
@@ -323,6 +322,8 @@ def run_abricate(args, abricate_dir, mobile_fasta, images_dict,
     cmds = []
     outfiles = []
     for db in args.analyses:
+        if db == "antismash":
+            continue
         print(db)
         outfiles.append("{outdir}/{db}.tab".format(outdir=abricate_dir, db=db))
         this_cmd = make_containerized_cmd(
@@ -358,7 +359,7 @@ def run_abricate(args, abricate_dir, mobile_fasta, images_dict,
             for line in open(f, "r"):
                 outf.write(line)
     with open(os.path.join(args.output, "citing.txt"), "a") as outf:
-        outf.write(images_dict['abricate']["url"])
+        outf.write(images_dict['abricate']["url"] + "\n")
 
 
 def make_cgview_tab_file(args, seqlen, cgview_entries):
@@ -406,11 +407,11 @@ def run_cgview(args, cgview_tab, cgview_dir, images_dict,
                    stderr=subprocess.PIPE,
                    check=True)
     with open(os.path.join(args.output, "citing.txt"), "a") as outf:
-        outf.write(images_dict['cgview']["url"])
+        outf.write(images_dict['cgview']["url"] + "\n")
 
 
-def run_antismash(args, antismash_dir, mobile_fasta, images_dict,
-                 all_results, subset="wgs", log_dir=None):
+def run_antismash(args, antismash_dir, gbk, images_dict,
+                 subset="wgs", log_dir=None):
     # remove old results
     if os.path.exists(antismash_dir):
         shutil.rmtree(antismash_dir)
@@ -420,19 +421,19 @@ def run_antismash(args, antismash_dir, mobile_fasta, images_dict,
         image=images_dict['antismash']['image'],
         sing=images_dict['antismash']["sing"],
         dcommand=str(
-            "--cpus {cores}  /input/{infilefasta} --output-dir {outdir} " +
-            "--genefinding-tool glimmerhmm "  +
+            "--cpus {cores} /input/{gbk} --output-dir /output/{outdir} " +
+            "--genefinding-tool prodigal " +
             "2> {log}_log.txt").format(
-                cpus=args.cpus,
-                infilefasta=os.path.relpath(mobile_fasta),
-                outdir=antismash_dir,
+                cores=args.cores,
+                gbk=os.path.relpath(gbk),
+                outdir=os.path.relpath(antismash_dir),
                 log=os.path.join(log_dir, subset + "_antismash")),
         scommand=str(
-            "--cpus {cores}  {infilefasta} --output-dir {outdir} " +
-            "--genefinding-tool glimmerhmm "  +
+            "--cpus {cores} {gbk} --output-dir {outdir} " +
+            "--genefinding-tool prodigal " +
             "2> {log}_log.txt").format(
-                cpus=args.cpus,
-                infilefasta=mobile_fasta,
+                cores=args.cores,
+                gbk=os.path.relpath(gbk),
                 outdir=antismash_dir,
                 log=os.path.join(log_dir, subset + "_antismash")),
     )

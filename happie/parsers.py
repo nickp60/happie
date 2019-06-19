@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-
+import os
+import glob
+from Bio import SeqIO
 
 def parse_prophet_results(results):
     results_text = []
@@ -118,3 +120,25 @@ def parse_mlplasmids_results(mlplasmids_results):
             templated.append(subresults)
             # print(subresults)
     return templated
+
+
+
+def parse_antismash_results(results_dir, region):
+    results = []
+    d = os.path.join(results_dir, "")
+    for f in glob.glob(d + "*region*.gbk"):
+        print("parsing antistmash result %s" %f)
+        with open(f, "r") as inf:
+            for record in SeqIO.parse(inf, "genbank"):
+                for feat in record.features:
+                    if feat.type == "protocluster":
+                        start, stop = feat.qualifiers.get(
+                            "core_location")[0].replace(
+                                "[", "").split("]")[0].split(":")
+                        results.append([
+                            record.id,
+                            region,
+                            "antismash",
+                            feat.qualifiers.get("product"),
+                            int(start), int(stop)])
+    return results

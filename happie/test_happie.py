@@ -8,6 +8,7 @@ import sys
 import logging
 import shutil
 # import subprocess
+import glob
 import os
 import unittest
 # import multiprocessing
@@ -44,6 +45,8 @@ class MpTestCase(unittest.TestCase):
         self.ref_prophet = os.path.join(
             self.ref_dir,
             'phages_coords')
+        self.ref_antismash = os.path.join(
+            self.ref_dir, "lcl_1.region001.gbk")
         self.ref_mlplasmids = os.path.join(
             self.ref_dir,
             'results.txt')
@@ -71,6 +74,17 @@ class MpTestCase(unittest.TestCase):
             parsers.parse_prophet_results(self.ref_prophet),
             ref
         )
+
+    def test_parse_antismash_results(self):
+        test_results = parsers.parse_antismash_results(
+            self.ref_dir, region="wgs")
+        ref_results = [["lcl_1", "wgs", "antismash",
+                        ["bacteriocin"], 525047, 525299]]
+        print(test_results)
+        print(ref_results)
+        assert ref_results == test_results
+
+
 
     def test_condensce_regions(self):
         all_results = [
