@@ -34,6 +34,6 @@ ADD instance.cfg /usr/local/lib/python3.5/dist-packages/antismash/config/instanc
 RUN mkdir -p /databases && download-antismash-databases --data /databases
 
 # RUN find / -name  run_antismash.py
-# ADD small.fasta ./
-# RUN /antismash-5.0.0rc1/run_antismash.py small.fasta --genefinding-tool prodigal -v
+ADD small.fasta ./
+RUN /antismash-5.0.0rc1/run_antismash.py small.fasta --genefinding-tool prodigal -v --output-dir tmpoutput && rm -r tmpoutput
 ENTRYPOINT [ "/antismash-5.0.0rc1/run_antismash.py" ]
