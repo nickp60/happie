@@ -527,7 +527,7 @@ def main(args=None):
         if not args.skip_QC:
             QC_bug(
                 args,
-                QC_dir,
+                QC_dir=QC_dir,
                 min_length=args.QC_min_assembly,
                 max_length=args.QC_max_assembly,
                 cov_threshold=args.QC_min_cov,

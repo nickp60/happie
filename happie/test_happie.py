@@ -17,12 +17,11 @@ from Bio.SeqRecord import SeqRecord
 from argparse import Namespace
 from unittest.mock import MagicMock, patch
 
-# I hate this line but it works :(
-sys.path.append(os.path.join(
-    os.path.dirname(os.path.dirname(__file__)), "happie"))
+from . import happie as hh
+from . import shared_methods as sm
+from . import runners as runners
+from . import parsers as parsers
 
-
-from happie import happie as hh
 sys.dont_write_bytecode = True
 
 logger = logging
@@ -38,7 +37,7 @@ class MpTestCase(unittest.TestCase):
         self.test_dir = os.path.join(os.path.dirname(__file__),
                                      "output_mp_tests")
         self.ref_dir = os.path.join(
-            os.path.dirname(__file__), "references")
+            os.path.dirname(__file__), "test_files")
         self.ref_contigs = os.path.join(
             self.ref_dir,
             'GCA_000225105.2_ASM22510v2_genomic_fragments.fna')
@@ -69,7 +68,7 @@ class MpTestCase(unittest.TestCase):
             ['prophet', 'prophages', 'AFDU01000011.1', 2908, 15720]
         ]
         self.assertEqual(
-            hh.parse_prophet_results(self.ref_prophet),
+            parsers.parse_prophet_results(self.ref_prophet),
             ref
         )
 
@@ -90,7 +89,7 @@ class MpTestCase(unittest.TestCase):
         ]
 
         self.assertEqual(
-            hh.parse_mlplasmids_results(self.ref_mlplasmids),
+            parsers.parse_mlplasmids_results(self.ref_mlplasmids),
             ref
         )
 
@@ -104,14 +103,23 @@ class MpTestCase(unittest.TestCase):
         ]
 
         seq_length, cgview_entries = hh.write_annotated_mobile_genome(
-            contigs=prokka_fna,
-            output_path=reference_mobile_genome_path,
-            non_overlapping_results=non_overlapping_results,
+            contigs=self.spades_assembly,
+            output_path=self.test_dir,
+            non_overlapping_results=all_results,
+            seed=123,
             all_results=all_results)
 
     def test_QC_bug(self):
-        args = Namespace(contigs=self.spades_assembly)
-        hh.QC_bug(args, min_length=10, max_length=100000000, cov_threshold=.2)
+        args = Namespace(contigs=self.spades_assembly, output="./")
+        if os.path.exists("sublogs"):
+            shutil.rmtree("sublogs")
+        os.makedirs("sublogs")
+        hh.QC_bug(
+            args,
+            QC_dir=self.test_dir,
+            min_length=10,
+            max_length=100000000,
+            cov_threshold=.2)
 
     # def test_remove_bad_contig(self):
     #     outfile = os.path.join(self.test_dir, "contigs_minus_NODE_2.fasta")
@@ -163,6 +171,7 @@ class MpTestCase(unittest.TestCase):
     #             name_list="NODE_4_:NODE_5_:NODE_45_".split(":"),
     #             logger=logger)
     #     self.to_be_removed.append(outfile)
+
 
     def tearDown(self):
         """ delete temp files if no errors
