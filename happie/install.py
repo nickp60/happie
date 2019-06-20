@@ -53,7 +53,7 @@ def install_image(args, image_dict):
     if args.virtualization == "docker":
         cmds.append("docker pull {image}".format(**locals()))
     else:
-        if os.path.exists(os.path.join(args.images_dir, image)):
+        if os.path.exists(os.path.join(args.images_dir, image) + "simg"):
             print("already have %s" %image)
         else:
             cmds.append("singularity pull docker://{image}".format(**locals()))
