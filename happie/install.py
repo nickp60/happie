@@ -53,8 +53,11 @@ def install_image(args, image_dict):
     if args.virtualization == "docker":
         cmds.append("docker pull {image}".format(**locals()))
     else:
-        cmds.append("singularity pull docker://{image}".format(**locals()))
-        cmds.append("mv {sing_name} {args.images_dir}".format(**locals()))
+        if os.path.exists(os.path.join(args.images_dir, image)):
+            print("already have %s" %image)
+        else:
+            cmds.append("singularity pull docker://{image}".format(**locals()))
+            cmds.append("mv {sing_name} {args.images_dir}".format(**locals()))
     for cmd in cmds:
         print(cmd)
         subprocess.run(
@@ -62,8 +65,7 @@ def install_image(args, image_dict):
             shell=sys.platform != "win32",
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            # docker propperly pulls; singularity erros if
-            # image exists
+            # docker properly pulls; singularity errors if image exists
             check=args.virtualization == "docker")
 
 

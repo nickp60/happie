@@ -61,7 +61,7 @@ programs:
     exe: null
     url: https://academic.oup.com/nar/article/46/6/e35/4807335
   antismash:
-    version: 5.0.3
+    version: 5.0.4
     maintainer: nickp60
     name: antismash
     exe: null
