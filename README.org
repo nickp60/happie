@@ -42,7 +42,7 @@ python setup.py install
 happie_install_or_update
 #+end_src
 
-That is going to take care of downloading Docker images for  [[link][ProphET]], [[link][prokka]], [[link][mlplasmids]], [[link][dimob]], [[https://github.com/phac-nml/mob-suite][mobsuite]], [[https://github.com/smaegol/PlasFlow][PlasFlow]].  If you are running singularity, a folder called `.happie` will be created in your home directory.
+That is going to take care of downloading Docker images for  [[link][ProphET]], [[link][prokka]], [[link][mlplasmids]], [[link][dimob]], [[https://github.com/phac-nml/mob-suite][mobsuite]], [[https://github.com/smaegol/PlasFlow][PlasFlow]], and other goodies.  If you are running singularity, a folder called `.happie` will be created in your home directory.
 
 * Running
 (Optional) get some test data:
@@ -131,9 +131,14 @@ See the short version of our head-to-head comparison here: [[https://nickp60.git
 *** AntiSmash
 In Progress
 
+*** FAQs
+- Q: This seems like a lot of computational time could be saved by simply referencing the coordinates the mobile regions, rather than extracting and running analyses on the subset. A: you're right!
+- Q: My harddrive is full!  why would you do this to me?  A: most of these tools rely on their own databases, which are all included in the docker images. Theres no way around it -- thats a loooooot of data.
+- Q:
+
 *** Note
 This module was renamed from "mobilephone", it was just too hard to google.
 
 
-*** Citing
+** Citing
 After each run, happie creates a "citing.txt" file, with links to all the software happie uses.  Some of those use additional references, so make sure give credit to everyone involved!
