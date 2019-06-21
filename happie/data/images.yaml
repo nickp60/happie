@@ -16,7 +16,7 @@ programs:
     name: annofilt
     exe: null
     results: null
-    url: null
+    url: https://github.com/nickp60/annofilt/
   prophet:
     version: 1.14
     maintainer: nickp60
