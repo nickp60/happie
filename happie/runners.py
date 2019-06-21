@@ -422,6 +422,7 @@ def run_antismash(args, antismash_dir, gbk, images_dict,
         sing=images_dict['antismash']["sing"],
         dcommand=str(
             "--cpus {cores} /input/{gbk} --output-dir /output/{outdir} " +
+            "--genefinding-tool prodigal " +
             "2> {log}_log.txt").format(
                 cores=args.cores,
                 gbk=os.path.relpath(gbk),
@@ -429,6 +430,7 @@ def run_antismash(args, antismash_dir, gbk, images_dict,
                 log=os.path.join(log_dir, subset + "_antismash")),
         scommand=str(
             "--cpus {cores} {gbk} --output-dir {outdir} " +
+            "--genefinding-tool prodigal " +
             "2> {log}_log.txt").format(
                 cores=args.cores,
                 gbk=os.path.relpath(gbk),

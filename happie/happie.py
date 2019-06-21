@@ -699,25 +699,46 @@ def main(args=None):
             all_results=wgs_abricate_data, subset="wgs", log_dir=log_dir)
 
         #########################################
-        # run antismash on both the mobile genome, and the
-        # entire sequence, for enrichment comparison
+        # run antismash on both the
+        # entire sequence, , then say whether its wgs or mobile,
+        # for enrichment comparison
         if "antismash" in args.analyses:
-            runners.run_antismash(
-                args, gbk=mobile_genome_path_prefix + ".gbk",
-                antismash_dir=mobile_antismash_dir, images_dict=images_dict,
-                subset="mobile", log_dir=log_dir)
+            # runners.run_antismash(
+            #     args, gbk=mobile_genome_path_prefix + ".gbk",
+            #     antismash_dir=mobile_antismash_dir, images_dict=images_dict,
+            #     subset="mobile", log_dir=log_dir)
             runners.run_antismash(
                 args, gbk=prokka_gbk,
                 antismash_dir=wgs_antismash_dir, images_dict=images_dict,
                 subset="wgs", log_dir=log_dir)
             wgs_results = parsers.parse_antismash_results(
                 wgs_antismash_dir, region="wgs")
-            mobile_results = parsers.parse_antismash_results(
-                mobile_antismash_dir, region="mobile")
             with open(os.path.join(results_dir, "antismash.txt"), "w") as outf:
-                for lst in [wgs_results, mobile_results]:
-                    for l in lst:
-                        outf.write("\t".join([str(x) for x in l]) + "\n")
+                for line in wgs_results:
+                    splits =  line#.split("\t")
+                    res = "wgs"
+                    for x, x, sequence, start, end in non_overlapping_results:
+                        if sequence == splits[0]:
+                            # dont look for a second hit after the start
+                            #  coord is within region: go on to the next
+                            # in front  overlap
+                            if splits[4] < start and start < splits[5] <= end:
+                                res = "partial"
+                                break
+                            # include
+                            elif splits[4] >= start and splits[5] <= end:
+                                res = "mobile"
+                                break
+                            # behind overlap
+                            elif  start <= splits[4] <= end  and splits[5] > end:
+                                res = "partial"
+                                break
+                            # excluded
+                            else:
+                                res = "wgs"
+                                continue
+                    splits[1] = res
+                    outf.write("\t".join([str(x) for x in splits]) + "\n")
 
         #########################################
         # run abricate on both the mobile genome, and the
