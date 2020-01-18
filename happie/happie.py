@@ -403,7 +403,7 @@ def QC_bug(args, QC_dir, min_length, max_length, cov_threshold=.2,
                     "Warning: cannot QC by assembly coverage; " +
                     "happie only parses SPAdes headers")
             else:
-                # forr instance, NODE_1_length_10442_cov_5.92661
+                # for instance, NODE_1_length_10442_cov_5.92661
                 p = re.compile(r'NODE_(?P<node>\d*?)_length_(?P' +
                                r'<length>\d*?)_cov_(?P<cov>[\d|\.]*)')
                 m = p.search(rec.id)
@@ -456,6 +456,7 @@ def main(args=None):
     if args is None:
         args = get_args()
     args.output = os.path.abspath(os.path.expanduser(args.output))
+    print("Checking executables")
     test_exes(exes=[args.virtualization])
     if args.restart_stage == 1:
         recheck_required_args(args)
@@ -463,8 +464,9 @@ def main(args=None):
     try:
         if args.restart_stage == 1:
             os.makedirs(args.output, exist_ok=False)
+        print("Starting happie pipeline")
     except FileExistsError:
-        print("Output directory already exsists! " +
+        print("Output directory already exists! " +
               "Please chose other desination or, " +
               "if restarting previous analysis, set --stages 2 or above")
         sys.exit(1)
@@ -497,6 +499,7 @@ def main(args=None):
     # make sub directories. We don't care if they already exist;
     #  cause we clobber them later if they will cause problems for reexecution
     # except dont make prokka dirs
+    print("  - creating output directories")
     for path in [results_dir, prophet_dir, mlplasmids_dir, island_dir,
                  plasflow_dir,
                  abricate_dir, wgs_abricate_dir, log_dir, QC_dir]:
@@ -527,6 +530,7 @@ def main(args=None):
         else:
             print("input is fasta")
         if not args.skip_QC:
+            print("Running quality control")
             QC_bug(
                 args,
                 QC_dir=QC_dir,
@@ -534,7 +538,7 @@ def main(args=None):
                 max_length=args.QC_max_assembly,
                 cov_threshold=args.QC_min_cov,
                 min_contig_length=args.QC_min_contig)
-        print("running prokka")
+        print("Running prokka")
         runners.run_annotation(
             args, contigs=args.contigs, prokka_dir=prokka_dir,
             images_dict=images_dict, skip_rename=args.skip_rename,
@@ -584,6 +588,7 @@ def main(args=None):
     if (
             args.restart_stage < 3 and
             any([x == "prophages" for x in args.elements])):
+        print("Running ProphET for prophage detection")
         runners.run_prophet(
             args, prokka, prophet_dir, images_dict,
             subset="mobile", log_dir=log_dir)
@@ -591,18 +596,22 @@ def main(args=None):
             args.restart_stage < 4 and
             any([x == "plasmids" for x in args.elements])):
         if "mobsuite" in args.plasmid_tools:
+            print("Running mobsuite for plasmid detection")
             runners.run_mobsuite(
                 args, prokka, mobsuite_dir, images_dict,
                 subset="mobile", log_dir=log_dir)
         if "mlplasmids" in args.plasmid_tools:
+            print("Running mlplasmids for plasmid detection")
             runners.run_mlplasmids(
                 args, prokka, mlplasmids_results, images_dict,
                 subset="mobile", log_dir=log_dir)
         if "plasflow" in args.plasmid_tools:
+            print("Running plasflow for plasmid detection")
             runners.run_plasflow(
                 args, prokka, plasflow_results, images_dict,
                 subset="mobile", log_dir=log_dir)
     if args.restart_stage < 5 and any([x == "islands" for x in args.elements]):
+        print("Running DIMOB for mobile island detection")
         runners.run_dimob(
             args, prokka, island_results, images_dict,
             subset="mobile", log_dir=log_dir)
@@ -612,7 +621,7 @@ def main(args=None):
 
     ###########################################################################
     # program type sequence start end
-
+    print("Processing results from mobile element detection tools")
     if args.restart_stage < 7:
         all_results = []
         if any([x == "prophages" for x in args.elements]):
@@ -687,6 +696,7 @@ def main(args=None):
         # entire sequence, for enrichment comparison
         abricate_data = os.path.join(results_dir, "mobile_abricate.tab")
         wgs_abricate_data = os.path.join(results_dir, "wgs_abricate.tab")
+        print("Running abricate")
         runners.run_abricate(
             args, abricate_dir,
             mobile_fasta=mobile_genome_path_prefix + ".fasta",

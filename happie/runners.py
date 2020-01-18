@@ -90,7 +90,7 @@ def run_annofilt(args, annofilt_dir, prokka_dir, images_dict,
     if os.path.exists(annofilt_dir):
         print("removing old annofilt dir")
         shutil.rmtree(annofilt_dir)
-    print("running annofilt")
+    print("Running annofilt")
     annofilt_cmd = make_containerized_cmd(
         args=args,
         image=images_dict['annofilt']["image"],
