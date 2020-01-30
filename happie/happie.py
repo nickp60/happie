@@ -10,6 +10,8 @@ import random
 import string
 import glob
 import yaml
+from statistics import median
+
 from argparse import Namespace
 from Bio.Seq import Seq
 from Bio import SeqIO
@@ -134,7 +136,7 @@ def get_args():  # pragma: no cover
                           default=0.2,
                           type=float,
                           help="if running QC, minimum coverage " +
-                          "fraction of mean coverage; default: %(default)s")
+                          "fraction of median coverage; default: %(default)s")
     optional.add_argument("-h", "--help",
                           action="help", default=argparse.SUPPRESS,
                           help="Displays this help message")
@@ -413,15 +415,47 @@ def QC_bug(args, QC_dir, min_length, max_length, cov_threshold=.2,
                 }
     if header_info:
         # this gets skipped if we didnt have spades headers
-        # this should prrobably get changed to median or something;
-        # shortie contigs have super high cover
+        # this was changed from mean to median
+        # shortie contigs have super high coverage and throw off the median
+        # for instance, ESC_IA2332AA.fasta has a mean of 315 but a median of 22.6, and the coverage histogram loks like:
+        #         cat /mnt/shared/projects/Escherichia_coli/201409_environmental_samples/analysis/2019-04-26-enterobase_subset/ESC_IA2332AA.fasta | grep ">" |  cut -d_ -f 6 | hist -s 15
+
+        #  125|  o
+        #  117|  o
+        #  109|  o
+        #  100|  o
+        #   92|  o
+        #   84|  o
+        #   75|  o
+        #   67|  o
+        #   59|  o
+        #   50|  o
+        #   42|  o
+        #   34|  o
+        #   25|  o
+        #   17|  o
+        #    9|  o
+        #    1| oo        o
+        #      -----------
+
+        # -----------------------------------
+        # |             Summary             |
+        # -----------------------------------
+        # |        observations: 127        |
+        # |       min value: 13.187000      |
+        # |        mean : 315.909348        |
+        # |     max value: 36021.000000     |
+        # -----------------------------------
         mean_coverage = sum([y['cov'] for x, y in
                              header_info.items()])/ncontigs
+        median_coverage = median([y['cov'] for x, y in header_info.items()])
         low_cov_contigs = {x: y for x, y in header_info.items() if
-                           y['cov'] < (mean_coverage * cov_threshold)}
+                           y['cov'] < (median_coverage * cov_threshold)}
     bad_contigs = {**short_contigs, **low_cov_contigs}
     if spades_headers:
         log_strings.append("N low coverage\t" + str(len(low_cov_contigs)))
+        log_strings.append("Median Coverage\t" + str(median_coverage))
+        log_strings.append("Mean Coverage\t" + str(mean_coverage))
     else:
         log_strings.append("N low coverage\tNA")
     retained_length = 0
@@ -440,10 +474,14 @@ def QC_bug(args, QC_dir, min_length, max_length, cov_threshold=.2,
                     retained_length += len(rec.seq)
                     SeqIO.write(rec, outf, "fasta")
         args.contigs = outfile
+    else:
+        retained_length = total_length
     log_strings.append("Filtered assembly length\t" + str(retained_length))
     with open(qclog, "w") as logoutf:
         for s in log_strings:
             logoutf.write(s + "\n")
+    if min_length > retained_length:
+        raise ValueError("Assembly too short after  filtering")
     if len(bad_contigs) >= ncontigs:
         raise ValueError(
             "All of the contigs are filtered out with the current criteria")
