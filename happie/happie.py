@@ -399,14 +399,14 @@ def QC_bug(args, QC_dir, min_length, max_length, cov_threshold=.2,
     with open(args.contigs) as inf:
         header_info = {}
         for rec in SeqIO.parse(inf, "fasta"):
-            if not rec.id.startswith("NODE"):
+            if not "_cov_" in rec.id:
                 spades_headers = False
                 log_strings.append(
                     "Warning: cannot QC by assembly coverage; " +
-                    "happie only parses SPAdes headers")
+                    "header %s lacks the *_cov_X* pattern " % rec.id)
             else:
                 # for instance, NODE_1_length_10442_cov_5.92661
-                p = re.compile(r'NODE_(?P<node>\d*?)_length_(?P' +
+                p = re.compile(r'.*NODE_(?P<node>\d*?)_length_(?P' +
                                r'<length>\d*?)_cov_(?P<cov>[\d|\.]*)')
                 m = p.search(rec.id)
                 header_info[rec.id] = {

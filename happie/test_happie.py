@@ -53,6 +53,9 @@ class MpTestCase(unittest.TestCase):
         self.spades_assembly = os.path.join(
             self.ref_dir,
             'contigs.fasta')
+        self.alt_assembly = os.path.join(
+            self.ref_dir,
+            'alt.fa')
         self.maxDiff = 2000
         self.to_be_removed = []
         if not os.path.exists(self.test_dir):
@@ -132,6 +135,19 @@ class MpTestCase(unittest.TestCase):
             args,
             QC_dir=self.test_dir,
             min_length=10,
+            max_length=100000000,
+            cov_threshold=.2)
+
+    def test_alt_cov_filter(self):
+        args = Namespace(contigs=self.alt_assembly, output="./")
+        if os.path.exists("sublogs"):
+            shutil.rmtree("sublogs")
+        os.makedirs("sublogs")
+        hh.QC_bug(
+            args,
+            QC_dir=self.test_dir,
+            min_length=10,
+            min_contig_length=10,
             max_length=100000000,
             cov_threshold=.2)
 
