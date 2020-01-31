@@ -1,5 +1,7 @@
-[![DOI](https://zenodo.org/badge/146430799.svg)](https://zenodo.org/badge/latestdoi/146430799)
+[![DOI](https://zenodo.org/badge/146430799.svg)](https://zenodo.org/badge/latestdoi/146430799)[![Build Status](https://travis-ci.org/nickp60/happie.svg?branch=master)](https://travis-ci.org/nickp60/happie)
+
 ![icon](icon/logo.png)
+
 # Happie
 Happie is a wrapper for several independent programs used to identify different mobile elements. It is designed to thrive on HPC environments taking advantage of either Docker or Singularity to containerize the different programs.
 
