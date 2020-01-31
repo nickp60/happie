@@ -1,0 +1,20 @@
+language: python
+os:
+- linux
+python:
+- 3.5
+- 3.6
+- 3.7
+- 3.8
+script:
+- python setup.py install
+- python -m unittest happie/test_*.py
+- happie -h
+deploy:
+  provider: pypi
+  user: NickWaters
+  skip_existing: true
+  on:
+    tags: true
+  password:
+    secure: t3XBj7DtHaygWeCvWElrutPNDqBCfq3yybjxwECl1XdzNBm6IF5UlXiAZ3RfqZ7OTXR6TsmxnAu0jAmZ7lFjwnpkmIPzFDz6OMi5XE0KqMZ6mhRiKYz8+QXFLpfkrpyMi2GoVC8IVXKUerRRR0JewtuUfXgg7yuctZZK9fheSt+hwIrqxU46JtgDvH8SkXGnwfHLAhWxtNGgvYipH8gZMa8RRV9FpCegcfnJ85lFb3NDutnoWqnisafUyELMI79IY/zknHX71P93VIrLD5q0doLBJKrdwuccHb0XnFKF23BY8KIM9qBDigvUI9S5HQ4A7DYeIHiS4dnlmVry9/+oH7t7n79tOY41xYD+0GFIUKJu868n6Tfn258Q9dJj3MePLfGdqqh4fZCPVq/+ef0uxQp4T2d7iESxwdcdWzF/MWPtD5AVI4seKQV7I7g4ulMICMfYbj4+8w8K73thkaOvzudvu4IFWHUOOj3Y7+a0LFT0miuBoARfFISeNcI/ey7Kj5IplR0OfqbHnAf6eC/OT7lPVwZK/wAtb0BJnVE+Ok3JmEeA2LgzElANzCBgbDPWVOe4dcE+sr5cngfrGNX9N656TqLO8Dr5+GMRMRiJe/XsskV5ycIITA2JT021GMOgmQ5PO2uAly/h25/L78FF23yaHxWJxnQY+bZDfzeBPBY=
