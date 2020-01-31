@@ -9,7 +9,7 @@ Happie allows you to identify and extract all the "mobile" regions of a genome a
 
 In the next few months, we will be uploaded a few case studies showing happie's utility.
 
-(click here for a quickstart guide!)[quickstart.org]
+[click here for a quickstart guide!](quickstart.md)
 
 
 ## Install
