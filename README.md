@@ -97,7 +97,7 @@ This ensures that the annotations are all the same format, which is useful for t
 ### 2) Identify Mobile Elements
 
 #### Plasmids
-If working with appropriate organisms, [[link][mlplasmids]] is your best. Otherwise, go with PlasFlow.  If you are feeling adventurous, try mob-suite, but use with caution.
+If working with appropriate organisms, [mlplasmids](https://gitlab.com/sirarredondo/mlplasmids) is your best. Otherwise, go with PlasFlow.  If you are feeling adventurous, try mob-suite, but use with caution.
 
 #### Genomic Islands
 Originally I was working on incorporating CAFE, but I later found out that it is not designed to handle certain organisms.  So, We went with IslandPath-DIMOB.
@@ -114,7 +114,7 @@ See the short version of our head-to-head comparison here: [Testing 3 Prophage F
 #### AntiSmash
 
 ## FAQs
-- Q: This seems like a lot of computational time could be saved by simply referencing the coordinates the mobile regions, rather than extracting and running analyses on the subset. A: you're right!
+- Q: This seems like a lot of computational time could be saved by simply referencing the coordinates the mobile regions, rather than extracting and running analyses on the subset. A: you're right! but lots of GWAS tools and other rely on fasta input, so it ends up being easier for downstream work.  oom for improvment!
 - Q: My harddrive is full!  why would you do this to me?  A: most of these tools rely on their own databases, which are all included in the docker images. Theres no way around it -- thats a loooooot of data.
 - Q:
 
