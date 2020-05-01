@@ -28,6 +28,15 @@ sys.dont_write_bytecode = True
 logger = logging
 
 
+def n_contigs(path):
+    counter = 0
+    with open(path, "r") as inf:
+        for line in inf:
+            if line.startswith(">"):
+                counter = counter + 1
+    return (counter)
+
+
 @unittest.skipIf((sys.version_info[0] != 3) or (sys.version_info[1] < 5),
                  "Subprocess.call among other things wont run if tried " +
                  " with less than python 3.5")
@@ -98,13 +107,13 @@ class MpTestCase(unittest.TestCase):
             ['mlplasmids', 'plasmids', '"A"', '0', '1214'],
         ]
         non_overlapping_results = hh.condensce_regions(all_results)
-        print(non_overlapping_results)
+        # print(non_overlapping_results)
+        assert len(non_overlapping_results) == 3, "error condensing region"
 
     def test_parse_mlplasmids_results(self):
         ref = [
             ['mlplasmids', 'plasmids', 'AFDU01000034.1', 1, 1214],
         ]
-
         self.assertEqual(
             parsers.parse_mlplasmids_results(self.ref_mlplasmids),
             ref
@@ -150,6 +159,10 @@ class MpTestCase(unittest.TestCase):
             min_contig_length=10,
             max_length=100000000,
             cov_threshold=.2)
+        assert n_contigs(self.alt_assembly) == 8, "input file changed length"
+        assert n_contigs(
+            os.path.join(self.test_dir, "alt_postQC.fasta")) == 7, \
+            "failed to remove bad contig"
 
     # def test_remove_bad_contig(self):
     #     outfile = os.path.join(self.test_dir, "contigs_minus_NODE_2.fasta")
